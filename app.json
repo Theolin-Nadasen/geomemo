@@ -14,16 +14,42 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow GeoMemo to access your camera to capture photos at locations."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow GeoMemo to use your location to discover and create location-based posts."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.solana.mobile.expo.template"
+      "bundleIdentifier": "com.geomemo.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.solana.mobile.expo.template"
+      "package": "com.geomemo.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCsvUqbM-sxFDm7S3CogcakZ4BETn8cK9A"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

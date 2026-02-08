@@ -35,7 +35,9 @@ import {
 type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
-  // 🔥 Your screens go here
+  Map: undefined;
+  CreatePost: undefined;
+  PostDetail: { post: any };
 };
 
 declare global {
@@ -49,14 +51,23 @@ const Stack = createNativeStackNavigator();
 
 const AppStack = () => {
   return (
-    <Stack.Navigator initialRouteName={"Home"}>
+    <Stack.Navigator initialRouteName={"Map"}>
       <Stack.Screen
-        name="HomeStack"
-        component={HomeNavigator}
+        name="Map"
+        component={Screens.MapScreen}
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="CreatePost"
+        component={Screens.CreatePostScreen}
+        options={{ title: "Create GeoMemo" }}
+      />
+      <Stack.Screen
+        name="PostDetail"
+        component={Screens.PostDetailScreen}
+        options={{ title: "GeoMemo" }}
+      />
       <Stack.Screen name="Settings" component={Screens.SettingsScreen} />
-      {/** 🔥 Your screens go here */}
     </Stack.Navigator>
   );
 };
