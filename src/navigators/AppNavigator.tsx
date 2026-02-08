@@ -38,6 +38,7 @@ type RootStackParamList = {
   Map: undefined;
   CreatePost: undefined;
   PostDetail: { post: any };
+  Profile: undefined;
 };
 
 declare global {
@@ -66,6 +67,11 @@ const AppStack = () => {
         name="PostDetail"
         component={Screens.PostDetailScreen}
         options={{ title: "GeoMemo" }}
+      />
+      <Stack.Screen 
+        name="Profile" 
+        component={Screens.ProfileScreen}
+        options={{ title: "Profile" }}
       />
       <Stack.Screen name="Settings" component={Screens.SettingsScreen} />
     </Stack.Navigator>

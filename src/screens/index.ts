@@ -3,3 +3,4 @@ export * from "./SettingsScreen";
 export * from "./MapScreen";
 export * from "./CreatePostScreen";
 export * from "./PostDetailScreen";
+export * from "./ProfileScreen";

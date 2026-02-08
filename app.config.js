@@ -6,12 +6,12 @@ export default {
     slug: "GeoMemo",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/logo.png",
     userInterfaceStyle: "automatic",
     splash: {
-      image: "./assets/splash.png",
+      image: "./assets/logo.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#000000"
     },
     assetBundlePatterns: [
       "**/*"
@@ -38,8 +38,8 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        foregroundImage: "./assets/logo.png",
+        backgroundColor: "#000000"
       },
       package: "com.geomemo.app",
       permissions: [

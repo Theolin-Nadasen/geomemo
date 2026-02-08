@@ -29,6 +29,7 @@ export function CreatePostScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [permissionGranted, setPermissionGranted] = useState(false);
 
   useEffect(() => {
     if (permission?.granted) {
@@ -68,7 +69,9 @@ export function CreatePostScreen() {
         );
         
         if (result === PermissionsAndroid.RESULTS.GRANTED) {
-          // Force refresh permissions
+          // Set local state to trigger re-render
+          setPermissionGranted(true);
+          // Also refresh expo-camera permission
           await requestPermission();
         } else if (result === PermissionsAndroid.RESULTS.DENIED) {
           setPermissionError("Camera permission was denied. Please enable it in Settings.");
@@ -78,7 +81,9 @@ export function CreatePostScreen() {
       } else {
         // iOS - use expo-camera's requestPermission
         const result = await requestPermission();
-        if (!result.granted) {
+        if (result.granted) {
+          setPermissionGranted(true);
+        } else {
           setPermissionError("Camera permission was denied.");
         }
       }
@@ -149,6 +154,9 @@ export function CreatePostScreen() {
     }
   };
 
+  // Check both hook permission and local state
+  const hasCameraPermission = permission?.granted || permissionGranted;
+
   if (!permission) {
     return (
       <View style={styles.container}>
@@ -157,7 +165,7 @@ export function CreatePostScreen() {
     );
   }
 
-  if (!permission.granted) {
+  if (!hasCameraPermission) {
     return (
       <View style={styles.container}>
         <Text variant="bodyLarge" style={styles.permissionText}>

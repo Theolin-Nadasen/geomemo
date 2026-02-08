@@ -7,15 +7,12 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { Text, Button, Card, Avatar, Divider } from "react-native-paper";
+import { Text, Button, Card, Divider } from "react-native-paper";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { PublicKey } from "@solana/web3.js";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { useAuthorization } from "../utils/useAuthorization";
 import { irysService } from "../services/irysService";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  createTransferInstruction,
-} from "@solana/spl-token";
 
 const SKR_MINT = new PublicKey("SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3");
 
@@ -116,7 +113,9 @@ export function PostDetailScreen() {
       
       <View style={styles.content}>
         <View style={styles.header}>
-          <Avatar.Icon size={40} icon="account" style={styles.avatar} />
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={24} color="#fff" />
+          </View>
           <View style={styles.headerText}>
             <Text variant="bodyMedium" style={styles.creator}>
               {post.creator.slice(0, 8)}...{post.creator.slice(-4)}
@@ -139,7 +138,7 @@ export function PostDetailScreen() {
         </Text>
 
         <View style={styles.locationContainer}>
-          <Avatar.Icon size={24} icon="map-marker" style={styles.locationIcon} />
+          <Ionicons name="location" size={20} color="#666" />
           <Text variant="bodySmall" style={styles.locationText}>
             {post.latitude.toFixed(4)}, {post.longitude.toFixed(4)}
             {post.distance && ` • ${Math.round(post.distance)}m away`}
@@ -216,6 +215,11 @@ const styles = StyleSheet.create({
   avatar: {
     marginRight: 12,
     backgroundColor: "#2196F3",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerText: {
     flex: 1,
@@ -248,12 +252,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  locationIcon: {
-    backgroundColor: "transparent",
-    marginRight: 4,
-  },
   locationText: {
     color: "#666",
+    marginLeft: 4,
   },
   tipsCard: {
     backgroundColor: "#e3f2fd",

@@ -7,7 +7,8 @@ import {
   Alert,
   TouchableOpacity,
 } from "react-native";
-import { Text, FAB, Card, Avatar, Button } from "react-native-paper";
+import { Text, Card, Button } from "react-native-paper";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
@@ -169,21 +170,29 @@ export function MapScreen() {
         <Text variant="titleLarge" style={styles.title}>
           GeoMemo
         </Text>
-        <View style={styles.toggleContainer}>
-          <Button
-            mode={viewMode === "map" ? "contained" : "outlined"}
-            onPress={() => setViewMode("map")}
-            style={styles.toggleButton}
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.profileButton}
           >
-            Map
-          </Button>
-          <Button
-            mode={viewMode === "list" ? "contained" : "outlined"}
-            onPress={() => setViewMode("list")}
-            style={styles.toggleButton}
-          >
-            List
-          </Button>
+            <Ionicons name="person-circle" size={32} color="#2196F3" />
+          </TouchableOpacity>
+          <View style={styles.toggleContainer}>
+            <Button
+              mode={viewMode === "map" ? "contained" : "outlined"}
+              onPress={() => setViewMode("map")}
+              style={styles.toggleButton}
+            >
+              Map
+            </Button>
+            <Button
+              mode={viewMode === "list" ? "contained" : "outlined"}
+              onPress={() => setViewMode("list")}
+              style={styles.toggleButton}
+            >
+              List
+            </Button>
+          </View>
         </View>
       </View>
 
@@ -233,8 +242,8 @@ export function MapScreen() {
               coordinate={{ latitude: post.latitude, longitude: post.longitude }}
               onPress={() => navigation.navigate("PostDetail", { post })}
             >
-              <View style={styles.markerContainer}>
-                <Avatar.Icon size={36} icon="map-marker" style={styles.markerIcon} />
+              <View style={[styles.markerContainer, { backgroundColor: '#FF5722' }]}>
+                <Ionicons name="location" size={24} color="#fff" />
               </View>
             </Marker>
           ))}
@@ -257,14 +266,15 @@ export function MapScreen() {
         />
       )}
 
-      <View style={styles.fabContainer}>
-        <FAB
-          icon="camera"
-          label="Create Post"
-          onPress={() => navigation.navigate("CreatePost")}
-          style={styles.fab}
-        />
-      </View>
+      <TouchableOpacity
+        style={styles.fabContainer}
+        onPress={() => navigation.navigate("CreatePost")}
+      >
+        <View style={styles.fab}>
+          <Ionicons name="camera" size={24} color="#fff" style={{marginRight: 8}} />
+          <Text style={styles.fabText}>Create Post</Text>
+        </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -279,6 +289,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  profileButton: {
+    marginRight: 8,
+    width: 48,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 24,
   },
   title: {
     fontWeight: "bold",
@@ -317,9 +340,6 @@ const styles = StyleSheet.create({
   markerContainer: {
     alignItems: "center",
   },
-  markerIcon: {
-    backgroundColor: "#FF5722",
-  },
   fabContainer: {
     position: "absolute",
     right: 16,
@@ -327,6 +347,17 @@ const styles = StyleSheet.create({
   },
   fab: {
     backgroundColor: "#2196F3",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 28,
+    elevation: 4,
+  },
+  fabText: {
+    color: "#fff",
+    marginLeft: 8,
+    fontWeight: "bold",
   },
   emptyContainer: {
     alignItems: "center",

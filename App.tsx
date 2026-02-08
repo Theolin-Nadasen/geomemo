@@ -1,8 +1,12 @@
 // Polyfills
 import "./src/polyfills";
 
-import { StyleSheet, useColorScheme } from "react-native";
+import { useEffect, useState, useCallback } from "react";
+import { StyleSheet, useColorScheme, View, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Font from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ConnectionProvider } from "./src/utils/ConnectionProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -19,10 +23,41 @@ import {
 import { AppNavigator } from "./src/navigators/AppNavigator";
 import { ClusterProvider } from "./src/components/cluster/cluster-data-access";
 
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
+
 const queryClient = new QueryClient();
 
 export default function App() {
+  const [appIsReady, setAppIsReady] = useState(false);
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        await Font.loadAsync({
+          ...Ionicons.font,
+          ...MaterialCommunityIcons.font,
+        });
+      } catch (e) {
+        console.warn("Error loading fonts:", e);
+      } finally {
+        setAppIsReady(true);
+      }
+    }
+
+    prepare();
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (appIsReady) {
+      await SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
+
+  if (!appIsReady) {
+    return null;
+  }
   const { LightTheme, DarkTheme } = adaptNavigationTheme({
     reactNavigationLight: NavigationDefaultTheme,
     reactNavigationDark: NavigationDarkTheme,
@@ -49,6 +84,7 @@ export default function App() {
       <ClusterProvider>
         <ConnectionProvider config={{ commitment: "processed" }}>
           <SafeAreaView
+            onLayout={onLayoutRootView}
             style={[
               styles.shell,
               {
