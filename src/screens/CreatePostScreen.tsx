@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  PermissionsAndroid,
 } from "react-native";
 import { Text, Button, ActivityIndicator } from "react-native-paper";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
@@ -27,6 +28,7 @@ export function CreatePostScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (permission?.granted) {
@@ -35,14 +37,56 @@ export function CreatePostScreen() {
   }, [permission]);
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      setLocation(loc);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        setLocation(loc);
+      }
+    } catch (error) {
+      console.error("Location permission error:", error);
     }
   };
+
+  const handleRequestPermission = useCallback(async () => {
+    try {
+      setPermissionError(null);
+      
+      if (Platform.OS === "android") {
+        // Use native Android permission API
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: "Camera Permission",
+            message: "GeoMemo needs access to your camera to take photos at locations.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK",
+          }
+        );
+        
+        if (result === PermissionsAndroid.RESULTS.GRANTED) {
+          // Force refresh permissions
+          await requestPermission();
+        } else if (result === PermissionsAndroid.RESULTS.DENIED) {
+          setPermissionError("Camera permission was denied. Please enable it in Settings.");
+        } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          setPermissionError("Camera permission is permanently denied. Please enable it in Settings → Apps → GeoMemo → Permissions.");
+        }
+      } else {
+        // iOS - use expo-camera's requestPermission
+        const result = await requestPermission();
+        if (!result.granted) {
+          setPermissionError("Camera permission was denied.");
+        }
+      }
+    } catch (error) {
+      console.error("Permission request error:", error);
+      setPermissionError("Failed to request camera permission.");
+    }
+  }, [requestPermission]);
 
   const takePicture = async () => {
     if (!cameraRef.current || !cameraReady) return;
@@ -119,7 +163,12 @@ export function CreatePostScreen() {
         <Text variant="bodyLarge" style={styles.permissionText}>
           Camera permission is required to create GeoMemos
         </Text>
-        <Button mode="contained" onPress={requestPermission}>
+        {permissionError && (
+          <Text variant="bodyMedium" style={styles.errorText}>
+            {permissionError}
+          </Text>
+        )}
+        <Button mode="contained" onPress={handleRequestPermission}>
           Grant Permission
         </Button>
       </View>
@@ -293,5 +342,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
     padding: 16,
+  },
+  errorText: {
+    color: "#d32f2f",
+    textAlign: "center",
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
 });
