@@ -15,14 +15,18 @@ import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { useAuthorization } from "../utils/useAuthorization";
+import { useMobileWallet } from "../utils/useMobileWallet";
 import { irysService } from "../services/irysService";
+import { useAppMode } from "../context/AppModeContext";
 
 export function CreatePostScreen() {
   const navigation = useNavigation();
   const { selectedAccount, authorizeSession } = useAuthorization();
+  const { transact } = useMobileWallet();
+  const { mode } = useAppMode();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  
+
   const [photo, setPhoto] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -39,7 +43,15 @@ export function CreatePostScreen() {
 
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Check permission status first (non-blocking)
+      let { status } = await Location.getForegroundPermissionsAsync();
+
+      // Request only if not already granted
+      if (status !== "granted") {
+        const result = await Location.requestForegroundPermissionsAsync();
+        status = result.status;
+      }
+
       if (status === "granted") {
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
@@ -54,7 +66,7 @@ export function CreatePostScreen() {
   const handleRequestPermission = useCallback(async () => {
     try {
       setPermissionError(null);
-      
+
       if (Platform.OS === "android") {
         // Use native Android permission API
         const result = await PermissionsAndroid.request(
@@ -67,7 +79,7 @@ export function CreatePostScreen() {
             buttonPositive: "OK",
           }
         );
-        
+
         if (result === PermissionsAndroid.RESULTS.GRANTED) {
           // Set local state to trigger re-render
           setPermissionGranted(true);
@@ -128,27 +140,49 @@ export function CreatePostScreen() {
     setIsUploading(true);
 
     try {
-      // Initialize Irys with wallet provider
-      const auth = await authorizeSession();
-      if (auth) {
-        await irysService.initialize(auth);
-      }
+      // Initialize Irys with wallet provider and create post
+      await transact(async (wallet) => {
+        const auth = await authorizeSession(wallet);
+        if (auth) {
+          await irysService.initialize(auth, mode);
+        }
 
-      // Create post on Irys
-      await irysService.createPost(
-        photo,
-        memo.trim(),
-        location.coords.latitude,
-        location.coords.longitude,
-        selectedAccount.address
-      );
+        // Create post on Irys (demo or real mode)
+        const postId = await irysService.createPost(
+          photo,
+          memo.trim(),
+          location.coords.latitude,
+          location.coords.longitude,
+          selectedAccount.address,
+          mode === "real" ? async (tx) => {
+            const signatures = await wallet.signAndSendTransactions({
+              transactions: [tx],
+            });
+            return signatures[0];
+          } : undefined
+        );
 
-      Alert.alert("Success", "Your GeoMemo has been posted!", [
+        // Success message depends on mode
+        if (mode === "real") {
+          console.log("Post created on Arweave:", postId);
+        } else {
+          console.log("Post created in demo mode:", postId);
+        }
+      });
+
+      const successMessage = mode === "real" 
+        ? "Your GeoMemo has been permanently stored on Arweave!"
+        : "Your GeoMemo has been posted (demo mode)!";
+
+      Alert.alert("Success", successMessage, [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       console.error("Failed to create post:", error);
-      Alert.alert("Error", "Failed to create post. Please try again.");
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Failed to create post. Please try again.";
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsUploading(false);
     }
@@ -251,7 +285,9 @@ export function CreatePostScreen() {
 
             <View style={styles.infoBox}>
               <Text variant="bodySmall" style={styles.infoText}>
-                This post will be visible to others within 100m for 7 days
+                {mode === "real"
+                  ? "This post will be permanently stored on Arweave. Estimated cost: ~0.0002 SOL (actual cost shown in wallet before signing). Visible to others within 100m for 7 days."
+                  : "Demo mode: This post is stored locally only and will not be visible to other users"}
               </Text>
             </View>
 

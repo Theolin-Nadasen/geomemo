@@ -9,14 +9,27 @@ import {
   DeauthorizeAPI,
   SignInPayloadWithRequiredFields,
   SignInPayload,
+  Cluster,
 } from "@solana-mobile/mobile-wallet-adapter-protocol";
 import { toUint8Array } from "js-base64";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
+import { useCluster, ClusterNetwork } from "../components/cluster/cluster-data-access";
 
 const CHAIN = "solana";
-const CLUSTER = "devnet";
-const CHAIN_IDENTIFIER = `${CHAIN}:${CLUSTER}`;
+
+// Map ClusterNetwork to Cluster type
+function toCluster(network: ClusterNetwork): Cluster {
+  switch (network) {
+    case ClusterNetwork.Mainnet:
+      return "mainnet-beta";
+    case ClusterNetwork.Testnet:
+      return "testnet";
+    case ClusterNetwork.Devnet:
+    default:
+      return "devnet";
+  }
+}
 
 export type Account = Readonly<{
   address: Base64EncodedAddress;
@@ -97,12 +110,16 @@ async function persistAuthorization(
 }
 
 export const APP_IDENTITY = {
-  name: "Solana Mobile Expo Template",
-  uri: "https://fakedomain.com",
+  name: "GeoMemo",
+  uri: "https://geomemo.app",
 };
+
+// For mobile wallet adapter - this helps the wallet know where to return
+export const APP_RETURN_URL = "geomemo://wallet-callback";
 
 export function useAuthorization() {
   const queryClient = useQueryClient();
+  const { selectedCluster } = useCluster();
   const { data: authorization, isLoading } = useQuery({
     queryKey: ["wallet-authorization"],
     queryFn: () => fetchAuthorization(),
@@ -113,6 +130,11 @@ export function useAuthorization() {
       queryClient.invalidateQueries({ queryKey: ["wallet-authorization"] });
     },
   });
+
+  // Get the current cluster for wallet authorization
+  const currentCluster = useMemo(() => {
+    return toCluster(selectedCluster?.network || ClusterNetwork.Devnet);
+  }, [selectedCluster]);
 
   const handleAuthorizationResult = useCallback(
     async (
@@ -129,28 +151,30 @@ export function useAuthorization() {
   );
   const authorizeSession = useCallback(
     async (wallet: AuthorizeAPI) => {
+      // Use chain parameter with proper typing - Cluster is a valid Chain type
       const authorizationResult = await wallet.authorize({
         identity: APP_IDENTITY,
-        chain: CHAIN_IDENTIFIER,
+        chain: currentCluster,
         auth_token: authorization?.authToken,
       });
       return (await handleAuthorizationResult(authorizationResult))
         .selectedAccount;
     },
-    [authorization, handleAuthorizationResult]
+    [authorization, handleAuthorizationResult, currentCluster]
   );
   const authorizeSessionWithSignIn = useCallback(
     async (wallet: AuthorizeAPI, signInPayload: SignInPayload) => {
+      // Use chain parameter with proper typing - Cluster is a valid Chain type
       const authorizationResult = await wallet.authorize({
         identity: APP_IDENTITY,
-        chain: CHAIN_IDENTIFIER,
+        chain: currentCluster,
         auth_token: authorization?.authToken,
         sign_in_payload: signInPayload,
       });
       return (await handleAuthorizationResult(authorizationResult))
         .selectedAccount;
     },
-    [authorization, handleAuthorizationResult]
+    [authorization, handleAuthorizationResult, currentCluster]
   );
   const deauthorizeSession = useCallback(
     async (wallet: DeauthorizeAPI) => {

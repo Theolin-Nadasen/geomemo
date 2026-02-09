@@ -6,6 +6,7 @@ import {
   RefreshControl,
   Alert,
   TouchableOpacity,
+  Image,
 } from "react-native";
 import { Text, Card, Button } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -13,6 +14,12 @@ import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useNavigation } from "@react-navigation/native";
+import { demoPostStore } from "../services/demoPostStore";
+import { irysService } from "../services/irysService";
+import { useAppMode } from "../context/AppModeContext";
+
+const DEMO_IMG_1 = require("../../assets/demo1.png");
+const DEMO_IMG_2 = require("../../assets/demo2.png");
 
 interface GeoPost {
   id: string;
@@ -27,35 +34,13 @@ interface GeoPost {
   distance?: number;
 }
 
-const MOCK_POSTS: GeoPost[] = [
-  {
-    id: "1",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    photoUrl: "https://placehold.co/300x300",
-    memo: "Beautiful view from here!",
-    creator: "7xKXtg2CW85d...",
-    timestamp: Date.now() - 86400000,
-    expiry: Date.now() + 6 * 86400000,
-    tips: 150,
-    distance: 50,
-  },
-  {
-    id: "2",
-    latitude: 37.7755,
-    longitude: -122.4185,
-    photoUrl: "https://placehold.co/300x300",
-    memo: "Hidden gem discovered",
-    creator: "ABC123...",
-    timestamp: Date.now() - 172800000,
-    expiry: Date.now() + 5 * 86400000,
-    tips: 75,
-    distance: 85,
-  },
-];
-
 // Haversine distance in meters
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function haversine(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
   const R = 6371e3;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
@@ -70,63 +55,220 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 export function MapScreen() {
   const { selectedAccount } = useAuthorization();
   const navigation = useNavigation();
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const { mode } = useAppMode();
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [posts, setPosts] = useState<GeoPost[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const [isLoadingRealPosts, setIsLoadingRealPosts] = useState(false);
+  const latestLocation = React.useRef<Location.LocationObject | null>(null);
 
-  useEffect(() => {
-    requestLocationPermission();
+  const createMockPosts = useCallback((lat: number, long: number) => {
+    const now = Date.now();
+    return [
+      {
+        id: "demo-1",
+        latitude: lat + 0.0002,
+        longitude: long + 0.0002,
+        photoUrl: Image.resolveAssetSource(DEMO_IMG_1).uri,
+        memo: "Checking out this cool spot! The view is amazing.",
+        creator: "7xKX...2CW8",
+        timestamp: now - 3600000,
+        expiry: now + 6 * 86400000,
+        tips: 150,
+      },
+      {
+        id: "demo-2",
+        latitude: lat - 0.0003,
+        longitude: long - 0.0001,
+        photoUrl: Image.resolveAssetSource(DEMO_IMG_2).uri,
+        memo: "Found a hidden gem here. Great coffee nearby too!",
+        creator: "ABC1...3XYZ",
+        timestamp: now - 86400000,
+        expiry: now + 5 * 86400000,
+        tips: 75,
+      },
+    ].map((post) => ({
+      ...post,
+      distance: haversine(lat, long, post.latitude, post.longitude),
+    }));
   }, []);
 
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Denied", "Location permission is required to discover nearby posts.");
-      return;
+  const encodeGeohash = (lat: number, lon: number, precision: number): string => {
+    const chars = "0123456789bcdefghjkmnpqrstuvwxyz";
+    let geohash = "";
+    let minLat = -90, maxLat = 90;
+    let minLon = -180, maxLon = 180;
+    let isEven = true;
+
+    while (geohash.length < precision) {
+      let charIndex = 0;
+      for (let i = 0; i < 5; i++) {
+        if (isEven) {
+          const mid = (minLon + maxLon) / 2;
+          if (lon >= mid) {
+            charIndex = charIndex * 2 + 1;
+            minLon = mid;
+          } else {
+            charIndex = charIndex * 2;
+            maxLon = mid;
+          }
+        } else {
+          const mid = (minLat + maxLat) / 2;
+          if (lat >= mid) {
+            charIndex = charIndex * 2 + 1;
+            minLat = mid;
+          } else {
+            charIndex = charIndex * 2;
+            maxLat = mid;
+          }
+        }
+        isEven = !isEven;
+      }
+      geohash += chars[charIndex];
     }
-    await getCurrentLocation();
+    return geohash;
   };
 
-  const getCurrentLocation = async () => {
-    try {
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+  const updatePosts = useCallback(async (loc: Location.LocationObject) => {
+    if (mode === "demo") {
+      // Demo mode: use mock posts
+      const standardMocks = createMockPosts(loc.coords.latitude, loc.coords.longitude);
+      const userMocks = demoPostStore.getPosts().map(p => ({
+        ...p,
+        distance: haversine(loc.coords.latitude, loc.coords.longitude, p.latitude, p.longitude)
+      }));
+
+      const combined = [...userMocks, ...standardMocks].sort((a, b) => b.timestamp - a.timestamp);
+      setPosts(combined);
+    } else {
+      // Real mode: query from Irys
+      setIsLoadingRealPosts(true);
+      try {
+        const geohash = encodeGeohash(loc.coords.latitude, loc.coords.longitude, 5); // 5 chars = ~2.4km
+        const realPosts = await irysService.queryPostsByGeohash(geohash, mode);
+        
+        const postsWithDistance = realPosts.map(p => ({
+          ...p,
+          distance: haversine(loc.coords.latitude, loc.coords.longitude, p.latitude, p.longitude)
+        })).filter(p => (p.distance || 0) < 1000); // Only show posts within 1km
+
+        setPosts(postsWithDistance.sort((a, b) => b.timestamp - a.timestamp));
+      } catch (error) {
+        console.error("Failed to load real posts:", error);
+        // Fallback to empty list
+        setPosts([]);
+      } finally {
+        setIsLoadingRealPosts(false);
+      }
+    }
+  }, [createMockPosts, mode]);
+
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
+    let postsGenerated = false;
+
+    const handleLocationUpdate = (loc: Location.LocationObject) => {
+      if (!isMounted) return;
+
       setLocation(loc);
-      await discoverPosts(loc);
-    } catch (error) {
-      Alert.alert("Error", "Failed to get location");
-    }
-  };
+      latestLocation.current = loc;
 
-  const discoverPosts = async (loc: Location.LocationObject) => {
-    const now = Date.now();
-    
-    // Filter posts within 100m that haven't expired
-    const nearbyPosts = MOCK_POSTS
-      .map((post) => ({
-        ...post,
-        distance: haversine(
-          loc.coords.latitude,
-          loc.coords.longitude,
-          post.latitude,
-          post.longitude
-        ),
-      }))
-      .filter((post) => post.distance <= 100 && post.expiry > now)
-      .sort((a, b) => b.timestamp - a.timestamp);
+      if (!postsGenerated) {
+        updatePosts(loc);
+        postsGenerated = true;
+      }
+    };
 
-    setPosts(nearbyPosts);
-  };
+    // Also subscribe to changes in user-created posts
+    const unsubscribe = demoPostStore.subscribe(() => {
+      if (isMounted && latestLocation.current) {
+        updatePosts(latestLocation.current);
+      }
+    });
+
+    const initLocation = async () => {
+      try {
+        // Check permission status first (non-blocking)
+        let { status } = await Location.getForegroundPermissionsAsync();
+
+        // Request only if not already granted
+        if (status !== "granted") {
+          const result = await Location.requestForegroundPermissionsAsync();
+          status = result.status;
+        }
+
+        if (status !== "granted") {
+          Alert.alert("Permission Denied", "Using demo location.");
+          const fallbackLoc: Location.LocationObject = {
+            coords: {
+              latitude: 37.7749,
+              longitude: -122.4194,
+              altitude: null,
+              accuracy: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          };
+          handleLocationUpdate(fallbackLoc);
+          return;
+        }
+
+        // Get fresh current position (not cached)
+        try {
+          const currentPos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          handleLocationUpdate(currentPos);
+        } catch (e) {
+          // If getCurrentPosition fails, try lastKnown as fallback
+          const lastKnown = await Location.getLastKnownPositionAsync({});
+          if (lastKnown) {
+            handleLocationUpdate(lastKnown);
+          }
+        }
+
+        // Start watching with high accuracy
+        subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 1 },
+          (newLoc) => {
+            handleLocationUpdate(newLoc);
+          }
+        );
+      } catch (error) {
+        console.warn("Location init error:", error);
+        const fallbackLoc: Location.LocationObject = {
+          coords: {
+            latitude: 37.7749, longitude: -122.4194,
+            altitude: null, accuracy: null, altitudeAccuracy: null, heading: null, speed: null,
+          },
+          timestamp: Date.now(),
+        };
+        handleLocationUpdate(fallbackLoc);
+      }
+    };
+
+    initLocation();
+
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+      unsubscribe();
+    };
+  }, [updatePosts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     if (location) {
-      await discoverPosts(location);
+      updatePosts(location);
     }
     setRefreshing(false);
-  }, [location]);
+  }, [location, updatePosts]);
 
   const formatDistance = (meters?: number) => {
     if (!meters) return "";
@@ -202,19 +344,20 @@ export function MapScreen() {
           region={
             location
               ? {
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                }
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }
               : {
-                  latitude: 37.7749,
-                  longitude: -122.4194,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
-                }
+                latitude: 37.7749,
+                longitude: -122.4194,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+              }
           }
         >
+          {/* User location marker */}
           {location && (
             <>
               <Marker
@@ -231,11 +374,12 @@ export function MapScreen() {
                   longitude: location.coords.longitude,
                 }}
                 radius={100}
-                fillColor="rgba(0, 0, 255, 0.1)"
-                strokeColor="rgba(0, 0, 255, 0.3)"
+                fillColor="rgba(33, 150, 243, 0.15)"
+                strokeColor="rgba(33, 150, 243, 0.5)"
               />
             </>
           )}
+          {/* Post markers */}
           {posts.map((post) => (
             <Marker
               key={post.id}
@@ -246,7 +390,8 @@ export function MapScreen() {
                 <Ionicons name="location" size={24} color="#fff" />
               </View>
             </Marker>
-          ))}
+          ))
+          }
         </MapView>
       ) : (
         <FlatList
@@ -257,10 +402,19 @@ export function MapScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text variant="bodyLarge">No posts nearby</Text>
-              <Text variant="bodyMedium" style={styles.emptySubtext}>
-                Walk around to discover GeoMemos within 100m
+              <Text variant="bodyLarge">
+                {isLoadingRealPosts ? "Loading posts..." : "No posts nearby"}
               </Text>
+              <Text variant="bodyMedium" style={styles.emptySubtext}>
+                {mode === "real" 
+                  ? "Be the first to create a GeoMemo in this area!" 
+                  : "Walk around to discover GeoMemos within 100m"}
+              </Text>
+              {mode === "real" && (
+                <Text variant="bodySmall" style={styles.modeIndicator}>
+                  Real Mode - Posts from Arweave
+                </Text>
+              )}
             </View>
           }
         />
@@ -271,7 +425,7 @@ export function MapScreen() {
         onPress={() => navigation.navigate("CreatePost")}
       >
         <View style={styles.fab}>
-          <Ionicons name="camera" size={24} color="#fff" style={{marginRight: 8}} />
+          <Ionicons name="camera" size={24} color="#fff" style={{ marginRight: 8 }} />
           <Text style={styles.fabText}>Create Post</Text>
         </View>
       </TouchableOpacity>
@@ -368,5 +522,10 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 8,
     textAlign: "center",
+  },
+  modeIndicator: {
+    marginTop: 12,
+    color: "#2196F3",
+    fontWeight: "bold",
   },
 });

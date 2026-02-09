@@ -22,14 +22,18 @@ import {
 } from "react-native-paper";
 import { AppNavigator } from "./src/navigators/AppNavigator";
 import { ClusterProvider } from "./src/components/cluster/cluster-data-access";
+import { AppModeProvider, useAppMode } from "./src/context/AppModeContext";
+import { StartupModeModal } from "./src/components/startup-mode-modal";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-export default function App() {
+function AppContent() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const [showModeModal, setShowModeModal] = useState(true);
+  const { mode, setMode, isLoading } = useAppMode();
   const colorScheme = useColorScheme();
 
   useEffect(() => {
@@ -50,14 +54,20 @@ export default function App() {
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
+    if (appIsReady && !isLoading) {
       await SplashScreen.hideAsync();
     }
-  }, [appIsReady]);
+  }, [appIsReady, isLoading]);
 
-  if (!appIsReady) {
+  const handleModeSelect = async (selectedMode: "demo" | "real") => {
+    await setMode(selectedMode);
+    setShowModeModal(false);
+  };
+
+  if (!appIsReady || isLoading) {
     return null;
   }
+
   const { LightTheme, DarkTheme } = adaptNavigationTheme({
     reactNavigationLight: NavigationDefaultTheme,
     reactNavigationDark: NavigationDarkTheme,
@@ -79,6 +89,7 @@ export default function App() {
       ...DarkTheme.colors,
     },
   };
+
   return (
     <QueryClientProvider client={queryClient}>
       <ClusterProvider>
@@ -103,11 +114,26 @@ export default function App() {
               }
             >
               <AppNavigator />
+              
+              {/* Mode Selection Modal - Shows on startup */}
+              <StartupModeModal
+                visible={showModeModal}
+                initialMode={mode}
+                onSelectMode={handleModeSelect}
+              />
             </PaperProvider>
           </SafeAreaView>
         </ConnectionProvider>
       </ClusterProvider>
     </QueryClientProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AppModeProvider>
+      <AppContent />
+    </AppModeProvider>
   );
 }
 

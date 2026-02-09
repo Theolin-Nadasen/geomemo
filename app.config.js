@@ -7,6 +7,7 @@ export default {
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/logo.png",
+    scheme: "geomemo",
     userInterfaceStyle: "automatic",
     splash: {
       image: "./assets/logo.png",
@@ -51,7 +52,20 @@ export default {
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_API_KEY
         }
-      }
+      },
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "geomemo",
+              host: "*"
+            }
+          ],
+          category: ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     web: {
       favicon: "./assets/favicon.png"

@@ -71,6 +71,7 @@ export function useMobileWallet() {
       disconnect,
       signAndSendTransaction,
       signMessage,
+      transact,
     }),
     [signAndSendTransaction, signMessage]
   );

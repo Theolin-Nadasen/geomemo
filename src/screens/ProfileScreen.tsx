@@ -10,10 +10,14 @@ import {
 } from "react-native";
 import { Text, Button, Card } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useMobileWallet } from "../utils/useMobileWallet";
 import { SignInFeature } from "../components/sign-in/sign-in-feature";
 import { useNavigation } from "@react-navigation/native";
+
+const DEMO_IMG_1 = require("../../assets/demo1.png");
+const DEMO_IMG_2 = require("../../assets/demo2.png");
 
 interface UserPost {
   id: string;
@@ -28,16 +32,16 @@ interface UserPost {
   status: "active" | "deleted";
 }
 
-// Mock data for development - will be replaced with Irys queries
-const MOCK_USER_POSTS: UserPost[] = [
+// Mock data for development - dynamically resolved URIs
+const getMockUserPosts = (): UserPost[] => [
   {
     id: "1",
     latitude: 37.7749,
     longitude: -122.4194,
-    photoUrl: "https://placehold.co/300x300",
-    memo: "Beautiful view from here! This is a longer memo to test truncation...",
+    photoUrl: Image.resolveAssetSource(DEMO_IMG_1).uri,
+    memo: "Checking out this cool spot! The view is amazing.",
     creator: "7xKXtg2CW85d...",
-    timestamp: Date.now() - 86400000,
+    timestamp: Date.now() - 3600000,
     expiry: Date.now() + 6 * 86400000,
     tips: 150,
     status: "active",
@@ -46,10 +50,10 @@ const MOCK_USER_POSTS: UserPost[] = [
     id: "2",
     latitude: 37.7755,
     longitude: -122.4185,
-    photoUrl: "https://placehold.co/300x300",
-    memo: "Hidden gem discovered",
+    photoUrl: Image.resolveAssetSource(DEMO_IMG_2).uri,
+    memo: "Found a hidden gem here. Great coffee nearby too!",
     creator: "7xKXtg2CW85d...",
-    timestamp: Date.now() - 172800000,
+    timestamp: Date.now() - 86400000,
     expiry: Date.now() + 5 * 86400000,
     tips: 75,
     status: "active",
@@ -62,17 +66,31 @@ export function ProfileScreen() {
   const navigation = useNavigation();
   const [posts, setPosts] = useState<UserPost[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [debugLocation, setDebugLocation] = useState<Location.LocationObject | null>(null);
 
   useEffect(() => {
     if (selectedAccount) {
       loadUserPosts();
     }
+    // Fetch location for debug display
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          setDebugLocation(loc);
+        }
+      } catch (e) {
+        console.warn("Profile location fetch failed", e);
+      }
+    })();
   }, [selectedAccount]);
 
   const loadUserPosts = async () => {
     // TODO: Query Irys for posts where creator == selectedAccount.address
     // Filter out deleted posts
-    const activePosts = MOCK_USER_POSTS.filter(
+    const allPosts = getMockUserPosts();
+    const activePosts = allPosts.filter(
       (post) => post.status === "active"
     );
     setPosts(activePosts);
@@ -151,7 +169,10 @@ export function ProfileScreen() {
   };
 
   const renderPostCard = ({ item }: { item: UserPost }) => (
-    <Card style={styles.card}>
+    <Card
+      style={styles.card}
+      onPress={() => navigation.navigate("PostDetail", { post: { ...item, distance: 0 } })}
+    >
       <View style={styles.cardContent}>
         <Image source={{ uri: item.photoUrl }} style={styles.cardImage} />
         <View style={styles.cardInfo}>
@@ -162,7 +183,7 @@ export function ProfileScreen() {
             {formatDate(item.timestamp)} • {formatTimeLeft(item.expiry)}
           </Text>
           <View style={styles.tipsContainer}>
-            <Ionicons name="cash-outline" size={20} color="#2196F3" style={{marginRight: 4}} />
+            <Ionicons name="cash-outline" size={20} color="#2196F3" style={{ marginRight: 4 }} />
             <Text variant="bodyMedium" style={styles.tipsText}>
               {item.tips} SKR
             </Text>
@@ -215,6 +236,11 @@ export function ProfileScreen() {
           <Text variant="bodySmall" style={styles.walletLabel}>
             Connected Wallet
           </Text>
+          {debugLocation && (
+            <Text variant="bodySmall" style={{ color: 'red', marginTop: 4 }}>
+              Debug Loc: {debugLocation.coords.latitude.toFixed(4)}, {debugLocation.coords.longitude.toFixed(4)}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -239,7 +265,7 @@ export function ProfileScreen() {
           </View>
         }
       />
-    </View>
+    </View >
   );
 }
 

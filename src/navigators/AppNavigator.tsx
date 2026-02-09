@@ -18,6 +18,7 @@ import {
   MD3LightTheme,
   adaptNavigationTheme,
 } from "react-native-paper";
+import { ModeIndicator } from "../components/mode-indicator";
 
 /**
  * This type allows TypeScript to know what routes are defined in this navigator
@@ -52,7 +53,12 @@ const Stack = createNativeStackNavigator();
 
 const AppStack = () => {
   return (
-    <Stack.Navigator initialRouteName={"Map"}>
+    <Stack.Navigator 
+      initialRouteName={"Map"}
+      screenOptions={{
+        headerRight: () => <ModeIndicator />,
+      }}
+    >
       <Stack.Screen
         name="Map"
         component={Screens.MapScreen}
