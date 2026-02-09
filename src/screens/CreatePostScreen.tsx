@@ -9,7 +9,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { Text, Button, IconButton } from "react-native-paper";
+import { Text, Button, IconButton, MD3DarkTheme } from "react-native-paper";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system";
@@ -41,7 +41,6 @@ export function CreatePostScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         if (mode === "demo") {
-          // In demo mode, we just use a fallback if they say no
           return;
         }
         Alert.alert(
@@ -51,25 +50,20 @@ export function CreatePostScreen() {
         return;
       }
 
-      // Try for 5 seconds to get a high-accuracy fix
       try {
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
-          timeout: 5000,
         });
         setLocation(loc);
       } catch (e) {
-        // Fallback to last known position if fresh fix fails
         console.warn("High accuracy fix failed, trying fallback...", e);
         const lastKnown = await Location.getLastKnownPositionAsync({});
         if (lastKnown) {
           setLocation(lastKnown);
         } else {
-          // One last try with lower accuracy
           try {
             const lowAcc = await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.Balanced,
-              timeout: 5000,
             });
             setLocation(lowAcc);
           } catch (e2) {
@@ -87,7 +81,6 @@ export function CreatePostScreen() {
 
     setIsSelecting(true);
     try {
-      console.log("Launching image library...");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -95,13 +88,8 @@ export function CreatePostScreen() {
         quality: 0.8,
       });
 
-      console.log("ImagePicker result returned. Canceled:", result.canceled);
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedUri = result.assets[0].uri;
-        console.log("Selected URI:", selectedUri);
-
-        // Copy to permanent storage to ensure it persists correctly
         const filename = `photo_${Date.now()}.jpg`;
         const permanentUri = FileSystem.documentDirectory + filename;
         await FileSystem.copyAsync({
@@ -128,7 +116,6 @@ export function CreatePostScreen() {
     const randomPhoto = demoPhotos[Math.floor(Math.random() * demoPhotos.length)];
     setPhoto(randomPhoto);
 
-    // Ensure we have a location for the demo post if GPS is still fetching
     if (!location) {
       const demoLoc: Location.LocationObject = {
         coords: {
@@ -143,9 +130,6 @@ export function CreatePostScreen() {
         timestamp: Date.now(),
       };
       setLocation(demoLoc);
-      Alert.alert("Demo Mode", "Using a placeholder photo and demo coordinates (San Francisco).");
-    } else {
-      Alert.alert("Demo Mode", "Using a placeholder photo.");
     }
   };
 
@@ -223,8 +207,8 @@ export function CreatePostScreen() {
 
   if (!selectedAccount) {
     return (
-      <View style={styles.container}>
-        <Text variant="bodyLarge">Please connect your wallet first</Text>
+      <View style={[styles.container, styles.centered]}>
+        <Text variant="bodyLarge" style={{ color: "#F8FAFC" }}>Please connect your wallet first</Text>
       </View>
     );
   }
@@ -237,7 +221,14 @@ export function CreatePostScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {!photo ? (
           <View style={styles.cameraPlaceholder}>
-            <IconButton icon="image-plus" size={64} mode="contained" onPress={pickImage} />
+            <IconButton
+              icon="image-plus"
+              size={64}
+              mode="contained"
+              containerColor="#EAB308"
+              iconColor="#000"
+              onPress={pickImage}
+            />
             <Text variant="headlineSmall" style={styles.placeholderText}>
               Select a Photo
             </Text>
@@ -250,6 +241,8 @@ export function CreatePostScreen() {
                 mode="contained"
                 onPress={pickImage}
                 style={styles.captureButton}
+                buttonColor="#EAB308"
+                textColor="#000"
                 disabled={isSelecting}
                 loading={isSelecting}
               >
@@ -260,7 +253,8 @@ export function CreatePostScreen() {
                 <Button
                   mode="outlined"
                   onPress={useDemoPhoto}
-                  style={styles.demoButton}
+                  style={[styles.demoButton, { borderColor: "#EAB308" }]}
+                  textColor="#EAB308"
                   disabled={isSelecting}
                 >
                   Use Demo Photo
@@ -269,19 +263,28 @@ export function CreatePostScreen() {
             </View>
 
             {location ? (
-              <Text variant="bodySmall" style={styles.locationTag}>
-                📍 {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
-              </Text>
+              <View style={styles.locationTag}>
+                <Text variant="bodySmall" style={styles.locationTagText}>
+                  📍 {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+                </Text>
+              </View>
             ) : (
-              <Text variant="bodySmall" style={[styles.locationTag, { backgroundColor: '#fff3e0', color: '#e65100' }]}>
-                ⌛ Fetching GPS location...
-              </Text>
+              <View style={[styles.locationTag, styles.locationTagPending]}>
+                <Text variant="bodySmall" style={styles.locationTagTextPending}>
+                  ⌛ Fetching GPS location...
+                </Text>
+              </View>
             )}
           </View>
         ) : (
           <View style={styles.photoContainer}>
             <Image source={{ uri: photo }} style={styles.photoPreview} />
-            <Button mode="outlined" onPress={retakePhoto} style={styles.retakeButton}>
+            <Button
+              mode="outlined"
+              onPress={retakePhoto}
+              style={[styles.retakeButton, { borderColor: "#EAB308" }]}
+              textColor="#EAB308"
+            >
               Choose Different Photo
             </Button>
           </View>
@@ -294,6 +297,7 @@ export function CreatePostScreen() {
           <TextInput
             style={styles.input}
             placeholder="What's happening at this location?"
+            placeholderTextColor="#94A3B8"
             value={memo}
             onChangeText={setMemo}
             multiline
@@ -308,6 +312,8 @@ export function CreatePostScreen() {
             mode="contained"
             onPress={handleSubmit}
             style={styles.submitButton}
+            buttonColor="#EAB308"
+            textColor="#000"
             loading={isUploading}
             disabled={!photo || !memo.trim() || isUploading}
           >
@@ -322,26 +328,33 @@ export function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#0F172A",
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   scrollContent: {
     flexGrow: 1,
   },
   cameraPlaceholder: {
-    height: 380,
-    backgroundColor: "#f5f5f5",
+    height: 400,
+    backgroundColor: "#1E293B",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
   },
   placeholderText: {
     marginTop: 16,
-    fontWeight: "600",
+    fontWeight: "bold",
+    color: "#F8FAFC",
   },
   placeholderSubtext: {
     textAlign: "center",
     marginTop: 8,
-    color: "#666",
+    color: "#94A3B8",
     marginBottom: 24,
   },
   buttonGroup: {
@@ -349,53 +362,79 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   locationTag: {
-    marginTop: 16,
-    color: "#1976d2",
-    backgroundColor: "#e3f2fd",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    marginTop: 20,
+    backgroundColor: "#0F172A",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  locationTagPending: {
+    borderColor: "#EAB30833",
+    backgroundColor: "#EAB3080A",
+  },
+  locationTagText: {
+    color: "#3B82F6",
+    fontWeight: "600",
+  },
+  locationTagTextPending: {
+    color: "#EAB308",
   },
   captureButton: {
     width: "100%",
+    height: 48,
+    justifyContent: "center",
   },
   demoButton: {
     width: "100%",
+    height: 48,
+    justifyContent: "center",
+    borderWidth: 1.5,
   },
   photoContainer: {
     height: 440,
     padding: 16,
+    backgroundColor: "#1E293B",
   },
   photoPreview: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: "#000",
     resizeMode: "cover",
   },
   retakeButton: {
-    marginTop: 12,
+    marginTop: 16,
+    borderWidth: 1.5,
   },
   formContainer: {
-    padding: 16,
+    padding: 20,
   },
   label: {
-    marginBottom: 8,
+    marginBottom: 10,
+    color: "#F8FAFC",
+    fontWeight: "600",
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: "top",
+    color: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   charCount: {
     textAlign: "right",
-    marginTop: 4,
-    color: "#666",
+    marginTop: 8,
+    color: "#94A3B8",
   },
   submitButton: {
-    marginTop: 24,
+    marginTop: 32,
+    height: 52,
+    justifyContent: "center",
+    borderRadius: 12,
   },
 });

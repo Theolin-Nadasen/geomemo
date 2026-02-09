@@ -8,7 +8,7 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import { Text, Button, Card } from "react-native-paper";
+import { Text, Button, Card, MD3DarkTheme } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
@@ -32,7 +32,6 @@ interface UserPost {
   status: "active" | "deleted";
 }
 
-// Mock data for development - dynamically resolved URIs
 const getMockUserPosts = (): UserPost[] => [
   {
     id: "1",
@@ -72,7 +71,6 @@ export function ProfileScreen() {
     if (selectedAccount) {
       loadUserPosts();
     }
-    // Fetch location for debug display
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -87,8 +85,6 @@ export function ProfileScreen() {
   }, [selectedAccount]);
 
   const loadUserPosts = async () => {
-    // TODO: Query Irys for posts where creator == selectedAccount.address
-    // Filter out deleted posts
     const allPosts = getMockUserPosts();
     const activePosts = allPosts.filter(
       (post) => post.status === "active"
@@ -134,14 +130,11 @@ export function ProfileScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            // TODO: Update post status to "deleted" on Irys
-            // For now, just filter locally
             setPosts((prev) =>
               prev.map((post) =>
                 post.id === postId ? { ...post, status: "deleted" } : post
               )
             );
-            // Remove from display immediately
             setPosts((prev) => prev.filter((post) => post.id !== postId));
           },
         },
@@ -153,10 +146,8 @@ export function ProfileScreen() {
     const now = Date.now();
     const diff = expiry - now;
     if (diff <= 0) return "Expired";
-
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
     if (days > 0) return `${days}d ${hours}h left`;
     return `${hours}h left`;
   };
@@ -176,14 +167,14 @@ export function ProfileScreen() {
       <View style={styles.cardContent}>
         <Image source={{ uri: item.photoUrl }} style={styles.cardImage} />
         <View style={styles.cardInfo}>
-          <Text variant="bodyMedium" numberOfLines={2} style={styles.memo}>
+          <Text variant="bodyLarge" numberOfLines={1} style={styles.memo}>
             {item.memo}
           </Text>
           <Text variant="bodySmall" style={styles.meta}>
             {formatDate(item.timestamp)} • {formatTimeLeft(item.expiry)}
           </Text>
           <View style={styles.tipsContainer}>
-            <Ionicons name="cash-outline" size={20} color="#2196F3" style={{ marginRight: 4 }} />
+            <Ionicons name="cash-outline" size={18} color="#EAB308" style={{ marginRight: 6 }} />
             <Text variant="bodyMedium" style={styles.tipsText}>
               {item.tips} SKR
             </Text>
@@ -193,7 +184,7 @@ export function ProfileScreen() {
           onPress={() => handleDeletePost(item.id)}
           style={styles.deleteButton}
         >
-          <Ionicons name="trash-outline" size={24} color="#d32f2f" />
+          <Ionicons name="trash-outline" size={24} color="#EF4444" />
         </TouchableOpacity>
       </View>
     </Card>
@@ -201,12 +192,12 @@ export function ProfileScreen() {
 
   if (!selectedAccount) {
     return (
-      <View style={styles.container}>
-        <Text variant="headlineMedium" style={styles.title}>
+      <View style={[styles.container, styles.connectContainer]}>
+        <Text variant="headlineMedium" style={[styles.title, { color: "#EAB308", marginBottom: 8 }]}>
           Profile
         </Text>
         <Text variant="bodyLarge" style={styles.connectPrompt}>
-          Connect your wallet to view your GeoMemos
+          Connect your wallet to view your GeoMemos and track your earnings.
         </Text>
         <SignInFeature />
       </View>
@@ -216,36 +207,37 @@ export function ProfileScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.title}>
+        <Text variant="headlineMedium" style={[styles.title, { color: "#EAB308" }]}>
           Profile
         </Text>
-        <Button mode="outlined" onPress={handleDisconnect} compact>
+        <Button
+          mode="outlined"
+          onPress={handleDisconnect}
+          compact
+          textColor="#EF4444"
+          style={{ borderColor: "#EF4444" }}
+        >
           Disconnect
         </Button>
       </View>
 
       <View style={styles.walletInfo}>
         <View style={styles.walletIcon}>
-          <Ionicons name="wallet-outline" size={28} color="#fff" />
+          <Ionicons name="wallet-outline" size={28} color="#000" />
         </View>
         <View style={styles.walletDetails}>
-          <Text variant="bodyLarge" style={styles.address}>
-            {selectedAccount.address.slice(0, 6)}...
-            {selectedAccount.address.slice(-4)}
+          <Text variant="titleLarge" style={styles.address}>
+            {selectedAccount.publicKey.toBase58().slice(0, 8)}...
+            {selectedAccount.publicKey.toBase58().slice(-6)}
           </Text>
           <Text variant="bodySmall" style={styles.walletLabel}>
-            Connected Wallet
+            Connected Solana Wallet
           </Text>
-          {debugLocation && (
-            <Text variant="bodySmall" style={{ color: 'red', marginTop: 4 }}>
-              Debug Loc: {debugLocation.coords.latitude.toFixed(4)}, {debugLocation.coords.longitude.toFixed(4)}
-            </Text>
-          )}
         </View>
       </View>
 
       <Text variant="titleMedium" style={styles.sectionTitle}>
-        My GeoMemos
+        MY GEOMEMOS
       </Text>
 
       <FlatList
@@ -254,14 +246,28 @@ export function ProfileScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#EAB308"
+            colors={["#EAB308"]}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text variant="bodyLarge">No GeoMemos yet</Text>
+            <Text variant="titleMedium" style={{ color: "#F8FAFC" }}>No GeoMemos yet</Text>
             <Text variant="bodyMedium" style={styles.emptySubtext}>
-              Create your first post from the map screen!
+              Start sharing moments! Create your first post from the map screen.
             </Text>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate("Map")}
+              style={{ marginTop: 24 }}
+              buttonColor="#EAB308"
+              textColor="#000"
+            >
+              Back to Map
+            </Button>
           </View>
         }
       />
@@ -272,104 +278,131 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 16,
+    backgroundColor: "#0F172A",
+    padding: 20,
+  },
+  connectContainer: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
   },
   title: {
     fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   connectPrompt: {
     textAlign: "center",
-    marginVertical: 32,
-    color: "#666",
+    marginVertical: 24,
+    color: "#94A3B8",
+    lineHeight: 22,
   },
   walletInfo: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
+    backgroundColor: "#1E293B",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   walletIcon: {
-    backgroundColor: "#2196F3",
-    marginRight: 12,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    backgroundColor: "#EAB308",
+    marginRight: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#334155",
   },
   walletDetails: {
     flex: 1,
   },
   address: {
     fontWeight: "bold",
+    color: "#F8FAFC",
   },
   walletLabel: {
-    color: "#666",
+    color: "#94A3B8",
     marginTop: 2,
+    fontWeight: "500",
   },
   sectionTitle: {
-    marginBottom: 12,
-    fontWeight: "bold",
+    marginBottom: 16,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 1.5,
+    fontSize: 12,
   },
   listContainer: {
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
   card: {
-    marginBottom: 12,
-    elevation: 2,
+    marginBottom: 16,
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   cardContent: {
     flexDirection: "row",
     padding: 12,
+    alignItems: "center",
   },
   cardImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 12,
+    width: 70,
+    height: 70,
+    borderRadius: 10,
+    marginRight: 16,
+    backgroundColor: "#0F172A",
   },
   cardInfo: {
     flex: 1,
-    justifyContent: "center",
   },
   memo: {
     marginBottom: 4,
+    color: "#F8FAFC",
+    fontWeight: "600",
   },
   meta: {
-    color: "#666",
-    marginBottom: 4,
+    color: "#94A3B8",
+    marginBottom: 6,
+    fontSize: 12,
   },
   tipsContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
-  tipIcon: {
-    marginRight: 4,
-  },
   tipsText: {
-    color: "#2196F3",
+    color: "#EAB308",
     fontWeight: "bold",
+    fontSize: 15,
   },
   deleteButton: {
-    margin: 0,
+    padding: 8,
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 32,
+    padding: 40,
+    marginTop: 40,
   },
   emptySubtext: {
-    color: "#666",
-    marginTop: 8,
+    color: "#94A3B8",
+    marginTop: 12,
     textAlign: "center",
+    lineHeight: 20,
   },
 });

@@ -87,6 +87,21 @@ function AppContent() {
     colors: {
       ...MD3DarkTheme.colors,
       ...DarkTheme.colors,
+      primary: "#EAB308", // Gold
+      onPrimary: "#000000",
+      secondary: "#3B82F6", // Blue
+      onSecondary: "#FFFFFF",
+      background: "#0F172A", // Midnight Slate
+      surface: "#1E293B", // Dark Navy Surface
+      onSurface: "#F8FAFC", // Off-White Text
+      onSurfaceVariant: "#94A3B8", // Slate Gray
+      outline: "#334155",
+      elevation: {
+        level1: "#1E293B",
+        level2: "#334155",
+        level3: "#475569",
+      },
+      error: "#EF4444",
     },
   };
 
@@ -114,7 +129,7 @@ function AppContent() {
               }
             >
               <AppNavigator />
-              
+
               {/* Mode Selection Modal - Shows on startup */}
               <StartupModeModal
                 visible={showModeModal}

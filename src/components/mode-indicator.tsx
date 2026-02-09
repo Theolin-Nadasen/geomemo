@@ -29,18 +29,18 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   demoContainer: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#EAB308",
   },
   realContainer: {
-    backgroundColor: "#2196F3",
+    backgroundColor: "#3B82F6",
   },
   text: {
     fontWeight: "bold",
     fontSize: 10,
-    color: "#fff",
+    textTransform: "uppercase",
   },
   demoText: {
-    color: "#fff",
+    color: "#000",
   },
   realText: {
     color: "#fff",

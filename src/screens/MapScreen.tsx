@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
-import { Text, Card, Button } from "react-native-paper";
+import { Text, Card, Button, MD3DarkTheme } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
@@ -307,23 +307,25 @@ export function MapScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: MD3DarkTheme.colors.background }]}>
       <View style={styles.header}>
-        <Text variant="titleLarge" style={styles.title}>
+        <Text variant="titleLarge" style={[styles.title, { color: "#EAB308" }]}>
           GeoMemo
         </Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
             onPress={() => navigation.navigate("Profile")}
-            style={styles.profileButton}
+            style={[styles.profileButton, { backgroundColor: "#1E293B" }]}
           >
-            <Ionicons name="person-circle" size={32} color="#2196F3" />
+            <Ionicons name="person-circle" size={32} color="#EAB308" />
           </TouchableOpacity>
           <View style={styles.toggleContainer}>
             <Button
               mode={viewMode === "map" ? "contained" : "outlined"}
               onPress={() => setViewMode("map")}
               style={styles.toggleButton}
+              buttonColor={viewMode === "map" ? "#EAB308" : "transparent"}
+              textColor={viewMode === "map" ? "#000" : "#EAB308"}
             >
               Map
             </Button>
@@ -331,6 +333,8 @@ export function MapScreen() {
               mode={viewMode === "list" ? "contained" : "outlined"}
               onPress={() => setViewMode("list")}
               style={styles.toggleButton}
+              buttonColor={viewMode === "list" ? "#EAB308" : "transparent"}
+              textColor={viewMode === "list" ? "#000" : "#EAB308"}
             >
               List
             </Button>
@@ -341,6 +345,7 @@ export function MapScreen() {
       {viewMode === "map" ? (
         <MapView
           style={styles.map}
+          userInterfaceStyle="dark"
           region={
             location
               ? {
@@ -357,7 +362,6 @@ export function MapScreen() {
               }
           }
         >
-          {/* User location marker */}
           {location && (
             <>
               <Marker
@@ -366,28 +370,30 @@ export function MapScreen() {
                   longitude: location.coords.longitude,
                 }}
                 title="You are here"
-                pinColor="blue"
-              />
+              >
+                <View style={styles.userMarker}>
+                  <View style={styles.userMarkerInner} />
+                </View>
+              </Marker>
               <Circle
                 center={{
                   latitude: location.coords.latitude,
                   longitude: location.coords.longitude,
                 }}
                 radius={100}
-                fillColor="rgba(33, 150, 243, 0.15)"
-                strokeColor="rgba(33, 150, 243, 0.5)"
+                fillColor="rgba(59, 130, 246, 0.1)"
+                strokeColor="rgba(59, 130, 246, 0.4)"
               />
             </>
           )}
-          {/* Post markers */}
           {posts.map((post) => (
             <Marker
               key={post.id}
               coordinate={{ latitude: post.latitude, longitude: post.longitude }}
               onPress={() => navigation.navigate("PostDetail", { post })}
             >
-              <View style={[styles.markerContainer, { backgroundColor: '#FF5722' }]}>
-                <Ionicons name="location" size={24} color="#fff" />
+              <View style={[styles.markerContainer, { backgroundColor: '#EAB308' }]}>
+                <Ionicons name="location" size={24} color="#000" />
               </View>
             </Marker>
           ))
@@ -399,10 +405,17 @@ export function MapScreen() {
           renderItem={renderPostCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#EAB308"
+              colors={["#EAB308"]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text variant="bodyLarge">
+              <Text variant="bodyLarge" style={{ color: "#F8FAFC" }}>
                 {isLoadingRealPosts ? "Loading posts..." : "No posts nearby"}
               </Text>
               <Text variant="bodyMedium" style={styles.emptySubtext}>
@@ -410,11 +423,6 @@ export function MapScreen() {
                   ? "Be the first to create a GeoMemo in this area!"
                   : "Walk around to discover GeoMemos within 100m"}
               </Text>
-              {mode === "real" && (
-                <Text variant="bodySmall" style={styles.modeIndicator}>
-                  Real Mode - Posts from Arweave
-                </Text>
-              )}
             </View>
           }
         />
@@ -424,9 +432,9 @@ export function MapScreen() {
         style={styles.fabContainer}
         onPress={() => navigation.navigate("CreatePost")}
       >
-        <View style={styles.fab}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.fabText}>Create Post</Text>
+        <View style={[styles.fab, { backgroundColor: "#EAB308" }]}>
+          <Ionicons name="add-circle" size={24} color="#000" />
+          <Text style={[styles.fabText, { color: "#000" }]}>Create Post</Text>
         </View>
       </TouchableOpacity>
     </View>
@@ -450,21 +458,28 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     marginRight: 8,
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    borderRadius: 24,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   title: {
     fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   toggleContainer: {
     flexDirection: "row",
+    backgroundColor: "#1E293B",
+    borderRadius: 20,
+    padding: 2,
   },
   toggleButton: {
-    marginLeft: 8,
+    marginHorizontal: 0,
+    height: 36,
+    borderRadius: 18,
   },
   map: {
     flex: 1,
@@ -474,6 +489,11 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 16,
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    overflow: "hidden",
   },
   cardImage: {
     height: 200,
@@ -481,51 +501,84 @@ const styles = StyleSheet.create({
   cardMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 8,
+    marginTop: 12,
   },
   metaText: {
-    color: "#666",
+    color: "#94A3B8",
   },
   tipsText: {
-    color: "#2196F3",
-    marginTop: 4,
+    color: "#EAB308",
+    marginTop: 6,
     fontWeight: "bold",
   },
   markerContainer: {
     alignItems: "center",
+    padding: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#000",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  userMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(59, 130, 246, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.5)",
+  },
+  userMarkerInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#3B82F6",
+    borderWidth: 2,
+    borderColor: "#F8FAFC",
   },
   fabContainer: {
     position: "absolute",
-    right: 16,
+    right: 20,
     bottom: 32,
   },
   fab: {
-    backgroundColor: "#2196F3",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 28,
-    elevation: 4,
+    paddingVertical: 14,
+    borderRadius: 30,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
   },
   fabText: {
-    color: "#fff",
-    marginLeft: 8,
-    fontWeight: "bold",
+    marginLeft: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    fontSize: 14,
+    letterSpacing: 1,
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 32,
+    padding: 48,
   },
   emptySubtext: {
-    color: "#666",
-    marginTop: 8,
+    color: "#94A3B8",
+    marginTop: 12,
     textAlign: "center",
+    lineHeight: 20,
   },
   modeIndicator: {
-    marginTop: 12,
-    color: "#2196F3",
+    marginTop: 16,
+    color: "#EAB308",
     fontWeight: "bold",
   },
 });

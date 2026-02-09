@@ -7,7 +7,7 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { Text, Button, Card, Divider } from "react-native-paper";
+import { Text, Button, Card, Divider, MD3DarkTheme } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -51,7 +51,7 @@ export function PostDetailScreen() {
 
   const loadSKRBalance = async () => {
     if (!selectedAccount?.address) return;
-    
+
     setIsLoadingBalance(true);
     try {
       const balance = await tokenService.getSKRBalance(selectedAccount.address);
@@ -100,7 +100,6 @@ export function PostDetailScreen() {
       return;
     }
 
-    // Check balance in real mode
     if (mode === "real" && skrBalance && skrBalance.uiAmount < amount) {
       Alert.alert(
         "Insufficient Balance",
@@ -113,17 +112,14 @@ export function PostDetailScreen() {
 
     try {
       await transact(async (wallet) => {
-        // Get authorization for transaction
         const auth = await authorizeSession(wallet);
         if (!auth) {
           throw new Error("Not authorized");
         }
 
-        // Initialize Irys
         await irysService.initialize(auth, mode);
 
         if (mode === "real") {
-          // Real token transfer
           const signTx = async (tx: Transaction): Promise<string> => {
             return await signAndSendTransaction(tx, 0);
           };
@@ -135,7 +131,6 @@ export function PostDetailScreen() {
             signTx
           );
 
-          // Record tip on Irys for proof
           await irysService.recordTip(
             post.id,
             amount,
@@ -155,7 +150,6 @@ export function PostDetailScreen() {
             [{ text: "OK" }]
           );
         } else {
-          // Demo mode - just record mock tip
           await irysService.recordTip(post.id, amount, selectedAccount.address, mode);
 
           Alert.alert(
@@ -165,7 +159,6 @@ export function PostDetailScreen() {
           );
         }
 
-        // Refresh balance in real mode
         if (mode === "real") {
           await loadSKRBalance();
         }
@@ -187,15 +180,14 @@ export function PostDetailScreen() {
     if (isTipping) return true;
     if (!selectedAccount) return true;
     if (!tipAmount) return true;
-    
+
     const amount = parseInt(tipAmount);
     if (isNaN(amount) || amount <= 0) return true;
-    
-    // In real mode, disable if insufficient balance
+
     if (mode === "real" && skrBalance && skrBalance.uiAmount < amount) {
       return true;
     }
-    
+
     return false;
   };
 
@@ -206,10 +198,10 @@ export function PostDetailScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color="#fff" />
+            <Ionicons name="person" size={24} color="#000" />
           </View>
           <View style={styles.headerText}>
-            <Text variant="bodyMedium" style={styles.creator}>
+            <Text variant="bodyLarge" style={styles.creator}>
               {post.creator.slice(0, 8)}...{post.creator.slice(-4)}
             </Text>
             <Text variant="bodySmall" style={styles.date}>
@@ -230,7 +222,7 @@ export function PostDetailScreen() {
         </Text>
 
         <View style={styles.locationContainer}>
-          <Ionicons name="location" size={20} color="#666" />
+          <Ionicons name="location" size={20} color="#EAB308" />
           <Text variant="bodySmall" style={styles.locationText}>
             {post.latitude.toFixed(4)}, {post.longitude.toFixed(4)}
             {post.distance && ` • ${Math.round(post.distance)}m away`}
@@ -241,7 +233,7 @@ export function PostDetailScreen() {
           <Card style={styles.tipsCard}>
             <Card.Content>
               <Text variant="titleMedium" style={styles.tipsTitle}>
-                {post.tips} SKR received in tips
+                🎉 {post.tips} SKR tipped
               </Text>
             </Card.Content>
           </Card>
@@ -249,23 +241,22 @@ export function PostDetailScreen() {
 
         {selectedAccount?.address !== post.creator && (
           <View style={[styles.tipSection, !selectedAccount && { opacity: 0.6 }]}>
-            <Text variant="titleMedium" style={styles.tipTitle}>
-              Tip Creator
+            <Text variant="titleLarge" style={styles.tipTitle}>
+              Support this Creator
             </Text>
-            <Text variant="bodySmall" style={styles.tipDescription}>
+            <Text variant="bodyMedium" style={styles.tipDescription}>
               {mode === "demo"
                 ? "Demo mode - tips are simulated (no real tokens)"
                 : "Send real SKR tokens to show appreciation"}
             </Text>
 
-            {/* SKR Balance Display (Real Mode Only) */}
             {mode === "real" && selectedAccount && (
               <View style={styles.balanceContainer}>
-                <Ionicons name="wallet" size={16} color="#666" />
-                <Text variant="bodySmall" style={styles.balanceText}>
+                <Ionicons name="wallet" size={18} color="#94A3B8" />
+                <Text variant="bodyMedium" style={styles.balanceText}>
                   {isLoadingBalance
                     ? "Loading balance..."
-                    : `Your balance: ${skrBalance?.uiAmount.toFixed(2) ?? "0.00"} SKR`}
+                    : `Balance: ${skrBalance?.uiAmount.toFixed(2) ?? "0.00"} SKR`}
                 </Text>
               </View>
             )}
@@ -274,11 +265,12 @@ export function PostDetailScreen() {
               <TextInput
                 style={[
                   styles.tipInput,
-                  !selectedAccount && { backgroundColor: "#f0f0f0" },
+                  !selectedAccount && { backgroundColor: "#1e293b", opacity: 0.5 },
                 ]}
                 placeholder={
-                  selectedAccount ? "Amount (SKR)" : "Sign in to tip"
+                  selectedAccount ? "Amount (SKR)" : "Connect wallet to tip"
                 }
+                placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 value={tipAmount}
                 onChangeText={setTipAmount}
@@ -290,26 +282,27 @@ export function PostDetailScreen() {
                   selectedAccount
                     ? handleTip
                     : () =>
-                        Alert.alert(
-                          "Sign In Required",
-                          "Please connect your wallet to tip."
-                        )
+                      Alert.alert(
+                        "Sign In Required",
+                        "Please connect your wallet to tip."
+                      )
                 }
                 loading={isTipping}
                 disabled={isTipButtonDisabled()}
                 style={styles.tipButton}
+                buttonColor="#EAB308"
+                textColor="#000"
               >
                 {isTipping ? "Sending..." : "Tip"}
               </Button>
             </View>
 
-            {/* Insufficient Balance Warning */}
             {mode === "real" &&
               selectedAccount &&
               skrBalance &&
               skrBalance.uiAmount === 0 && (
                 <Text variant="bodySmall" style={styles.insufficientBalance}>
-                  Insufficient SKR balance. You need SKR tokens to tip.
+                  ⚠️ Insufficient balance for tipping
                 </Text>
               )}
           </View>
@@ -317,9 +310,9 @@ export function PostDetailScreen() {
 
         <View style={styles.infoBox}>
           <Text variant="bodySmall" style={styles.infoText}>
-            {mode === "real"
-              ? `This post expires in ${formatTimeLeft(post.expiry)} and will no longer be discoverable. The on-chain proof remains permanent on Arweave.`
-              : `This post expires in ${formatTimeLeft(post.expiry)}. Demo mode - posts are stored locally only.`}
+            ℹ️ {mode === "real"
+              ? `This post expires in ${formatTimeLeft(post.expiry)} and will no longer be discoverable on the map. The on-chain proof is permanent.`
+              : `This post expires in ${formatTimeLeft(post.expiry)}. Demo mode - stored locally only.`}
           </Text>
         </View>
       </View>
@@ -330,98 +323,123 @@ export function PostDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#0F172A",
   },
   image: {
     width: "100%",
     aspectRatio: 1,
+    backgroundColor: "#1E293B",
   },
   content: {
-    padding: 16,
+    padding: 20,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   avatar: {
     marginRight: 12,
-    backgroundColor: "#2196F3",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    backgroundColor: "#EAB308",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#334155",
   },
   headerText: {
     flex: 1,
   },
   creator: {
     fontWeight: "bold",
+    color: "#F8FAFC",
   },
   date: {
-    color: "#666",
+    color: "#94A3B8",
+    marginTop: 2,
   },
   expiryBadge: {
-    backgroundColor: "#ffebee",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.2)",
   },
   expiryText: {
-    color: "#c62828",
+    color: "#EF4444",
     fontWeight: "bold",
   },
   divider: {
-    marginBottom: 16,
+    marginBottom: 20,
+    backgroundColor: "#334155",
   },
   memo: {
-    marginBottom: 16,
-    lineHeight: 24,
+    marginBottom: 24,
+    lineHeight: 28,
+    color: "#F8FAFC",
+    fontSize: 18,
   },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
+    backgroundColor: "#1E293B",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   locationText: {
-    color: "#666",
-    marginLeft: 4,
+    color: "#94A3B8",
+    marginLeft: 8,
+    fontWeight: "500",
   },
   tipsCard: {
-    backgroundColor: "#e3f2fd",
-    marginBottom: 16,
+    backgroundColor: "rgba(234, 179, 8, 0.1)",
+    marginBottom: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.2)",
   },
   tipsTitle: {
-    color: "#1976d2",
+    color: "#EAB308",
     textAlign: "center",
+    fontWeight: "bold",
   },
   tipSection: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 8,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderTopColor: "#334155",
   },
   tipTitle: {
-    marginBottom: 4,
+    marginBottom: 6,
+    color: "#F8FAFC",
+    fontWeight: "bold",
   },
   tipDescription: {
-    color: "#666",
-    marginBottom: 12,
+    color: "#94A3B8",
+    marginBottom: 16,
+    lineHeight: 20,
   },
   balanceContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#f5f5f5",
-    borderRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   balanceText: {
-    marginLeft: 8,
-    color: "#666",
-    fontWeight: "500",
+    marginLeft: 10,
+    color: "#3B82F6",
+    fontWeight: "600",
   },
   tipInputContainer: {
     flexDirection: "row",
@@ -429,29 +447,38 @@ const styles = StyleSheet.create({
   },
   tipInput: {
     flex: 1,
+    backgroundColor: "#1E293B",
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#334155",
+    borderRadius: 12,
+    padding: 14,
     marginRight: 12,
     fontSize: 16,
+    color: "#F8FAFC",
   },
   tipButton: {
-    minWidth: 100,
+    minWidth: 110,
+    height: 52,
+    justifyContent: "center",
+    borderRadius: 12,
   },
   insufficientBalance: {
-    color: "#d32f2f",
-    marginTop: 8,
+    color: "#EF4444",
+    marginTop: 12,
     textAlign: "center",
+    fontWeight: "500",
   },
   infoBox: {
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 24,
+    backgroundColor: "#1E293B",
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 32,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   infoText: {
-    color: "#666",
+    color: "#94A3B8",
     textAlign: "center",
+    lineHeight: 18,
   },
 });

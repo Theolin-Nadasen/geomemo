@@ -30,7 +30,10 @@ export function ConnectButton() {
       mode="contained"
       disabled={authorizationInProgress}
       onPress={handleConnectPress}
-      style={{ flex: 1 }}
+      style={{ flex: 1, height: 48, justifyContent: 'center', borderRadius: 12 }}
+      buttonColor="#EAB308"
+      textColor="#000"
+      labelStyle={{ fontWeight: 'bold' }}
     >
       Connect
     </Button>
@@ -49,7 +52,7 @@ export function SignInButton() {
       setSignInInProgress(true);
       await signIn({
         domain: "yourdomain.com",
-        statement: "Sign into Expo Template App",
+        statement: "Sign into GeoMemo",
         uri: "https://yourdomain.com",
       });
     } catch (err: any) {
@@ -66,7 +69,9 @@ export function SignInButton() {
       mode="outlined"
       disabled={signInInProgress}
       onPress={handleConnectPress}
-      style={{ marginLeft: 4, flex: 1 }}
+      style={{ marginLeft: 8, flex: 1, height: 48, justifyContent: 'center', borderRadius: 12, borderColor: '#EAB308' }}
+      textColor="#EAB308"
+      labelStyle={{ fontWeight: 'bold' }}
     >
       Sign in
     </Button>

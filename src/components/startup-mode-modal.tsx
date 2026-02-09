@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { Text, Button, Card, Portal } from "react-native-paper";
+import { Text, Button, Card, Portal, MD3DarkTheme } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AppMode } from "../context/AppModeContext";
 
@@ -59,7 +59,7 @@ export function StartupModeModal({
             <Card style={styles.card}>
               <Card.Content>
                 <View style={styles.warningHeader}>
-                  <Ionicons name="warning" size={32} color="#f57c00" />
+                  <Ionicons name="warning" size={32} color="#F59E0B" />
                   <Text variant="headlineSmall" style={styles.warningTitle}>
                     Real Mode Selected
                   </Text>
@@ -84,7 +84,7 @@ export function StartupModeModal({
                   </Text>
                 </View>
 
-                <Text variant="bodyMedium" style={styles.costNote}>
+                <Text variant="bodySmall" style={styles.costNote}>
                   Estimated costs: ~0.0001 SOL per upload, ~0.000005 SOL per tip
                 </Text>
 
@@ -92,16 +92,19 @@ export function StartupModeModal({
                   <Button
                     mode="outlined"
                     onPress={handleCancelRealMode}
-                    style={styles.button}
+                    textColor="#94A3B8"
+                    style={{ flex: 1, marginRight: 8, borderColor: "#334155" }}
                   >
                     Cancel
                   </Button>
                   <Button
                     mode="contained"
                     onPress={handleConfirmRealMode}
-                    style={styles.button}
+                    buttonColor="#F59E0B"
+                    textColor="#000"
+                    style={{ flex: 1 }}
                   >
-                    I Understand
+                    Confirm
                   </Button>
                 </View>
               </Card.Content>
@@ -136,7 +139,7 @@ export function StartupModeModal({
                 <Card
                   style={[
                     styles.modeCard,
-                    selectedMode === "demo" && styles.selectedCard,
+                    selectedMode === "demo" && styles.selectedCardDemo,
                   ]}
                   onPress={() => handleModeSelect("demo")}
                 >
@@ -145,13 +148,13 @@ export function StartupModeModal({
                       <Ionicons
                         name="game-controller"
                         size={28}
-                        color={selectedMode === "demo" ? "#4CAF50" : "#666"}
+                        color={selectedMode === "demo" ? "#EAB308" : "#94A3B8"}
                       />
                       <Text
                         variant="titleMedium"
                         style={[
                           styles.modeTitle,
-                          selectedMode === "demo" && styles.selectedText,
+                          selectedMode === "demo" && { color: "#EAB308" },
                         ]}
                       >
                         Demo Mode
@@ -176,7 +179,7 @@ export function StartupModeModal({
                 <Card
                   style={[
                     styles.modeCard,
-                    selectedMode === "real" && styles.selectedCard,
+                    selectedMode === "real" && styles.selectedCardReal,
                   ]}
                   onPress={() => handleModeSelect("real")}
                 >
@@ -185,13 +188,13 @@ export function StartupModeModal({
                       <Ionicons
                         name="logo-usd"
                         size={28}
-                        color={selectedMode === "real" ? "#2196F3" : "#666"}
+                        color={selectedMode === "real" ? "#3B82F6" : "#94A3B8"}
                       />
                       <Text
                         variant="titleMedium"
                         style={[
                           styles.modeTitle,
-                          selectedMode === "real" && styles.selectedText,
+                          selectedMode === "real" && { color: "#3B82F6" },
                         ]}
                       >
                         Real Mode (Mainnet)
@@ -219,7 +222,8 @@ export function StartupModeModal({
                     mode="contained"
                     onPress={handleDemoConfirm}
                     style={styles.confirmButton}
-                    buttonColor="#4CAF50"
+                    buttonColor="#EAB308"
+                    textColor="#000"
                   >
                     Start Demo Mode
                   </Button>
@@ -228,7 +232,8 @@ export function StartupModeModal({
                     mode="contained"
                     onPress={() => handleModeSelect("real")}
                     style={styles.confirmButton}
-                    buttonColor="#2196F3"
+                    buttonColor="#3B82F6"
+                    textColor="#fff"
                   >
                     Continue to Real Mode
                   </Button>
@@ -249,7 +254,7 @@ export function StartupModeModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -258,93 +263,115 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 400,
     maxHeight: "90%",
+    backgroundColor: "#1E293B",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   title: {
     textAlign: "center",
     marginBottom: 8,
     fontWeight: "bold",
+    color: "#F8FAFC",
   },
   subtitle: {
     textAlign: "center",
-    marginBottom: 16,
-    color: "#666",
+    marginBottom: 20,
+    color: "#94A3B8",
   },
   optionsContainer: {
     maxHeight: 400,
   },
   modeCard: {
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: "transparent",
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    backgroundColor: "#0F172A",
+    borderRadius: 16,
   },
-  selectedCard: {
-    borderColor: "#2196F3",
-    backgroundColor: "#e3f2fd",
+  selectedCardDemo: {
+    borderColor: "#EAB308",
+    backgroundColor: "rgba(234, 179, 8, 0.05)",
+  },
+  selectedCardReal: {
+    borderColor: "#3B82F6",
+    backgroundColor: "rgba(59, 130, 246, 0.05)",
   },
   modeHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   modeTitle: {
     marginLeft: 12,
-    fontWeight: "600",
-  },
-  selectedText: {
-    color: "#2196F3",
     fontWeight: "bold",
+    color: "#F8FAFC",
   },
   modeDescription: {
-    color: "#666",
-    marginLeft: 40,
-    marginBottom: 2,
+    color: "#94A3B8",
+    marginLeft: 36,
+    marginBottom: 4,
+    fontSize: 13,
   },
   buttonContainer: {
-    marginTop: 16,
+    marginTop: 20,
   },
   confirmButton: {
     width: "100%",
+    height: 52,
+    justifyContent: "center",
+    borderRadius: 12,
   },
   footerNote: {
     textAlign: "center",
-    marginTop: 12,
-    color: "#999",
+    marginTop: 16,
+    color: "#64748B",
+    fontSize: 12,
   },
-  // Confirmation screen styles
   warningHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   warningTitle: {
     marginLeft: 12,
     fontWeight: "bold",
-    color: "#f57c00",
+    color: "#F59E0B",
   },
   warningText: {
-    marginBottom: 12,
-    fontWeight: "600",
+    marginBottom: 16,
+    fontWeight: "bold",
+    color: "#F8FAFC",
+    textAlign: "center",
   },
   bulletPoints: {
-    marginBottom: 16,
+    marginBottom: 20,
+    backgroundColor: "#0F172A",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
   },
   bullet: {
-    marginBottom: 4,
-    color: "#333",
+    marginBottom: 6,
+    color: "#94A3B8",
+    fontSize: 14,
   },
   costNote: {
     fontStyle: "italic",
-    color: "#666",
-    marginBottom: 20,
+    color: "#64748B",
+    marginBottom: 24,
     textAlign: "center",
   },
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  button: {
+  actionButton: {
     flex: 1,
-    marginHorizontal: 4,
+    height: 48,
+    justifyContent: "center",
+    borderRadius: 10,
   },
 });
