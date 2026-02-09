@@ -30,6 +30,13 @@ export default {
           locationAlwaysAndWhenInUsePermission: "Allow GeoMemo to use your location to discover and create location-based posts."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          photosPermission: "Allow GeoMemo to access your photos to share them at locations.",
+          cameraPermission: "Allow GeoMemo to access your camera to capture photos at locations."
+        }
+      ],
       "expo-asset",
       "expo-font"
     ],

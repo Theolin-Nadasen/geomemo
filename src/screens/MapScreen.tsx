@@ -149,7 +149,7 @@ export function MapScreen() {
       try {
         const geohash = encodeGeohash(loc.coords.latitude, loc.coords.longitude, 5); // 5 chars = ~2.4km
         const realPosts = await irysService.queryPostsByGeohash(geohash, mode);
-        
+
         const postsWithDistance = realPosts.map(p => ({
           ...p,
           distance: haversine(loc.coords.latitude, loc.coords.longitude, p.latitude, p.longitude)
@@ -406,8 +406,8 @@ export function MapScreen() {
                 {isLoadingRealPosts ? "Loading posts..." : "No posts nearby"}
               </Text>
               <Text variant="bodyMedium" style={styles.emptySubtext}>
-                {mode === "real" 
-                  ? "Be the first to create a GeoMemo in this area!" 
+                {mode === "real"
+                  ? "Be the first to create a GeoMemo in this area!"
                   : "Walk around to discover GeoMemos within 100m"}
               </Text>
               {mode === "real" && (
@@ -425,7 +425,7 @@ export function MapScreen() {
         onPress={() => navigation.navigate("CreatePost")}
       >
         <View style={styles.fab}>
-          <Ionicons name="camera" size={24} color="#fff" style={{ marginRight: 8 }} />
+          <Ionicons name="add-circle" size={24} color="#fff" />
           <Text style={styles.fabText}>Create Post</Text>
         </View>
       </TouchableOpacity>

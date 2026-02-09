@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -8,214 +8,218 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  PermissionsAndroid,
 } from "react-native";
-import { Text, Button, ActivityIndicator } from "react-native-paper";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import { Text, Button, IconButton } from "react-native-paper";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
+import * as FileSystem from "expo-file-system";
 import { useNavigation } from "@react-navigation/native";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useMobileWallet } from "../utils/useMobileWallet";
 import { irysService } from "../services/irysService";
 import { useAppMode } from "../context/AppModeContext";
+import { demoPostStore } from "../services/demoPostStore";
 
 export function CreatePostScreen() {
   const navigation = useNavigation();
-  const { selectedAccount, authorizeSession } = useAuthorization();
+  const { selectedAccount } = useAuthorization();
   const { transact } = useMobileWallet();
   const { mode } = useAppMode();
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
-  const [permissionGranted, setPermissionGranted] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
 
   useEffect(() => {
-    if (permission?.granted) {
-      requestLocationPermission();
-    }
-  }, [permission]);
+    requestLocationPermission();
+  }, []);
 
   const requestLocationPermission = async () => {
     try {
-      // Check permission status first (non-blocking)
-      let { status } = await Location.getForegroundPermissionsAsync();
-
-      // Request only if not already granted
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        const result = await Location.requestForegroundPermissionsAsync();
-        status = result.status;
+        if (mode === "demo") {
+          // In demo mode, we just use a fallback if they say no
+          return;
+        }
+        Alert.alert(
+          "Permission required",
+          "This app needs location permissions to geolocate your memos."
+        );
+        return;
       }
 
-      if (status === "granted") {
+      // Try for 5 seconds to get a high-accuracy fix
+      try {
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
+          timeout: 5000,
         });
         setLocation(loc);
+      } catch (e) {
+        // Fallback to last known position if fresh fix fails
+        console.warn("High accuracy fix failed, trying fallback...", e);
+        const lastKnown = await Location.getLastKnownPositionAsync({});
+        if (lastKnown) {
+          setLocation(lastKnown);
+        } else {
+          // One last try with lower accuracy
+          try {
+            const lowAcc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              timeout: 5000,
+            });
+            setLocation(lowAcc);
+          } catch (e2) {
+            console.error("All location attempts failed", e2);
+          }
+        }
       }
     } catch (error) {
       console.error("Location permission error:", error);
     }
   };
 
-  const handleRequestPermission = useCallback(async () => {
+  const pickImage = async () => {
+    if (isSelecting) return;
+
+    setIsSelecting(true);
     try {
-      setPermissionError(null);
-
-      if (Platform.OS === "android") {
-        // Use native Android permission API
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: "Camera Permission",
-            message: "GeoMemo needs access to your camera to take photos at locations.",
-            buttonNeutral: "Ask Me Later",
-            buttonNegative: "Cancel",
-            buttonPositive: "OK",
-          }
-        );
-
-        if (result === PermissionsAndroid.RESULTS.GRANTED) {
-          // Set local state to trigger re-render
-          setPermissionGranted(true);
-          // Also refresh expo-camera permission
-          await requestPermission();
-        } else if (result === PermissionsAndroid.RESULTS.DENIED) {
-          setPermissionError("Camera permission was denied. Please enable it in Settings.");
-        } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-          setPermissionError("Camera permission is permanently denied. Please enable it in Settings → Apps → GeoMemo → Permissions.");
-        }
-      } else {
-        // iOS - use expo-camera's requestPermission
-        const result = await requestPermission();
-        if (result.granted) {
-          setPermissionGranted(true);
-        } else {
-          setPermissionError("Camera permission was denied.");
-        }
-      }
-    } catch (error) {
-      console.error("Permission request error:", error);
-      setPermissionError("Failed to request camera permission.");
-    }
-  }, [requestPermission]);
-
-  const takePicture = async () => {
-    if (!cameraRef.current || !cameraReady) return;
-
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
+      console.log("Launching image library...");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
         quality: 0.8,
-        base64: true,
       });
-      if (photo?.uri) {
-        setPhoto(photo.uri);
+
+      console.log("ImagePicker result returned. Canceled:", result.canceled);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedUri = result.assets[0].uri;
+        console.log("Selected URI:", selectedUri);
+
+        // Copy to permanent storage to ensure it persists correctly
+        const filename = `photo_${Date.now()}.jpg`;
+        const permanentUri = FileSystem.documentDirectory + filename;
+        await FileSystem.copyAsync({
+          from: selectedUri,
+          to: permanentUri,
+        });
+
+        setPhoto(permanentUri);
       }
-    } catch (error) {
-      Alert.alert("Error", "Failed to take picture");
+    } catch (error: any) {
+      console.error("Failed to pick image:", error);
+      Alert.alert("Error", `Could not select image: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsSelecting(false);
+    }
+  };
+
+  const useDemoPhoto = () => {
+    const demoPhotos = [
+      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=1000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1000&auto=format&fit=crop",
+    ];
+    const randomPhoto = demoPhotos[Math.floor(Math.random() * demoPhotos.length)];
+    setPhoto(randomPhoto);
+
+    // Ensure we have a location for the demo post if GPS is still fetching
+    if (!location) {
+      const demoLoc: Location.LocationObject = {
+        coords: {
+          latitude: 37.7749,
+          longitude: -122.4194,
+          altitude: 0,
+          accuracy: 5,
+          altitudeAccuracy: 5,
+          heading: 0,
+          speed: 0,
+        },
+        timestamp: Date.now(),
+      };
+      setLocation(demoLoc);
+      Alert.alert("Demo Mode", "Using a placeholder photo and demo coordinates (San Francisco).");
+    } else {
+      Alert.alert("Demo Mode", "Using a placeholder photo.");
     }
   };
 
   const retakePhoto = () => {
     setPhoto(null);
-    setCameraReady(false);
   };
 
-  const submitPost = async () => {
-    if (!photo || !location || !selectedAccount) {
-      Alert.alert("Error", "Missing required information");
+  const handleSubmit = async () => {
+    if (!selectedAccount) {
+      Alert.alert("Error", "No wallet account selected. Please connect your wallet.");
       return;
     }
-
+    if (!photo) {
+      Alert.alert("Error", "Please select a photo first.");
+      return;
+    }
+    if (!location) {
+      Alert.alert("Error", "Location not found. Please wait for a GPS signal or check permissions.");
+      return;
+    }
     if (!memo.trim()) {
-      Alert.alert("Error", "Please add a memo");
+      Alert.alert("Error", "Please add a memo description.");
       return;
     }
 
     setIsUploading(true);
-
     try {
-      // Initialize Irys with wallet provider and create post
-      await transact(async (wallet) => {
-        const auth = await authorizeSession(wallet);
-        if (auth) {
-          await irysService.initialize(auth, mode);
-        }
+      if (mode === "demo") {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
-        // Create post on Irys (demo or real mode)
-        const postId = await irysService.createPost(
-          photo,
-          memo.trim(),
-          location.coords.latitude,
-          location.coords.longitude,
-          selectedAccount.address,
-          mode === "real" ? async (tx) => {
-            const signatures = await wallet.signAndSendTransactions({
+        demoPostStore.addPost({
+          id: Math.random().toString(36).substring(7),
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          memo: memo.trim(),
+          timestamp: Date.now(),
+          photoUrl: photo,
+          creator: selectedAccount.publicKey.toBase58(),
+          expiry: Date.now() + 24 * 60 * 60 * 1000,
+          tips: 0,
+        });
+
+        Alert.alert("Success", "Memo posted (Demo Mode)");
+        navigation.goBack();
+        return;
+      }
+
+      const postTxId = await irysService.createPost(
+        photo,
+        memo.trim(),
+        location.coords.latitude,
+        location.coords.longitude,
+        selectedAccount.publicKey.toBase58(),
+        async (tx) => {
+          return await transact(async (wallet) => {
+            const [signedTx] = await wallet.signAndSendTransactions({
               transactions: [tx],
             });
-            return signatures[0];
-          } : undefined
-        );
-
-        // Success message depends on mode
-        if (mode === "real") {
-          console.log("Post created on Arweave:", postId);
-        } else {
-          console.log("Post created in demo mode:", postId);
+            return signedTx;
+          });
         }
-      });
+      );
 
-      const successMessage = mode === "real" 
-        ? "Your GeoMemo has been permanently stored on Arweave!"
-        : "Your GeoMemo has been posted (demo mode)!";
-
-      Alert.alert("Success", successMessage, [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
-    } catch (error) {
-      console.error("Failed to create post:", error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : "Failed to create post. Please try again.";
-      Alert.alert("Error", errorMessage);
+      if (postTxId) {
+        Alert.alert("Success", "Memo posted successfully!");
+        navigation.goBack();
+      }
+    } catch (error: any) {
+      console.error("Submission error:", error);
+      Alert.alert("Error", error.message || "Failed to post memo");
     } finally {
       setIsUploading(false);
     }
   };
-
-  // Check both hook permission and local state
-  const hasCameraPermission = permission?.granted || permissionGranted;
-
-  if (!permission) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (!hasCameraPermission) {
-    return (
-      <View style={styles.container}>
-        <Text variant="bodyLarge" style={styles.permissionText}>
-          Camera permission is required to create GeoMemos
-        </Text>
-        {permissionError && (
-          <Text variant="bodyMedium" style={styles.errorText}>
-            {permissionError}
-          </Text>
-        )}
-        <Button mode="contained" onPress={handleRequestPermission}>
-          Grant Permission
-        </Button>
-      </View>
-    );
-  }
 
   if (!selectedAccount) {
     return (
@@ -232,76 +236,84 @@ export function CreatePostScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {!photo ? (
-          <View style={styles.cameraContainer}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing="back"
-              onCameraReady={() => setCameraReady(true)}
-            >
-              <View style={styles.cameraOverlay}>
-                <Text variant="bodyMedium" style={styles.locationText}>
-                  {location
-                    ? `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
-                    : "Getting location..."}
-                </Text>
-              </View>
-            </CameraView>
-            <Button
-              mode="contained"
-              onPress={takePicture}
-              style={styles.captureButton}
-              disabled={!cameraReady || !location}
-            >
-              Take Photo
-            </Button>
-          </View>
-        ) : (
-          <View style={styles.previewContainer}>
-            <Image source={{ uri: photo }} style={styles.preview} />
-            <Button mode="outlined" onPress={retakePhoto} style={styles.retakeButton}>
-              Retake
-            </Button>
-          </View>
-        )}
-
-        {photo && (
-          <View style={styles.formContainer}>
-            <Text variant="titleMedium" style={styles.label}>
-              Add a memo
+          <View style={styles.cameraPlaceholder}>
+            <IconButton icon="image-plus" size={64} mode="contained" onPress={pickImage} />
+            <Text variant="headlineSmall" style={styles.placeholderText}>
+              Select a Photo
             </Text>
-            <TextInput
-              style={styles.input}
-              multiline
-              numberOfLines={4}
-              placeholder="What's special about this location?"
-              value={memo}
-              onChangeText={setMemo}
-              maxLength={280}
-            />
-            <Text variant="bodySmall" style={styles.charCount}>
-              {memo.length}/280
+            <Text variant="bodyMedium" style={styles.placeholderSubtext}>
+              Choose a moment from your gallery to share
             </Text>
 
-            <View style={styles.infoBox}>
-              <Text variant="bodySmall" style={styles.infoText}>
-                {mode === "real"
-                  ? "This post will be permanently stored on Arweave. Estimated cost: ~0.0002 SOL (actual cost shown in wallet before signing). Visible to others within 100m for 7 days."
-                  : "Demo mode: This post is stored locally only and will not be visible to other users"}
-              </Text>
+            <View style={styles.buttonGroup}>
+              <Button
+                mode="contained"
+                onPress={pickImage}
+                style={styles.captureButton}
+                disabled={isSelecting}
+                loading={isSelecting}
+              >
+                Open Gallery
+              </Button>
+
+              {mode === "demo" && (
+                <Button
+                  mode="outlined"
+                  onPress={useDemoPhoto}
+                  style={styles.demoButton}
+                  disabled={isSelecting}
+                >
+                  Use Demo Photo
+                </Button>
+              )}
             </View>
 
-            <Button
-              mode="contained"
-              onPress={submitPost}
-              loading={isUploading}
-              disabled={isUploading || !memo.trim()}
-              style={styles.submitButton}
-            >
-              {isUploading ? "Posting..." : "Post GeoMemo"}
+            {location ? (
+              <Text variant="bodySmall" style={styles.locationTag}>
+                📍 {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+              </Text>
+            ) : (
+              <Text variant="bodySmall" style={[styles.locationTag, { backgroundColor: '#fff3e0', color: '#e65100' }]}>
+                ⌛ Fetching GPS location...
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.photoContainer}>
+            <Image source={{ uri: photo }} style={styles.photoPreview} />
+            <Button mode="outlined" onPress={retakePhoto} style={styles.retakeButton}>
+              Choose Different Photo
             </Button>
           </View>
         )}
+
+        <View style={styles.formContainer}>
+          <Text variant="labelLarge" style={styles.label}>
+            Add a memo...
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="What's happening at this location?"
+            value={memo}
+            onChangeText={setMemo}
+            multiline
+            maxLength={280}
+            editable={!isUploading}
+          />
+          <Text variant="bodySmall" style={styles.charCount}>
+            {memo.length}/280
+          </Text>
+
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            style={styles.submitButton}
+            loading={isUploading}
+            disabled={!photo || !memo.trim() || isUploading}
+          >
+            {mode === "demo" ? "Post (Demo Mode)" : "Post Memo"}
+          </Button>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -310,48 +322,61 @@ export function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#fff",
   },
   scrollContent: {
     flexGrow: 1,
   },
-  cameraContainer: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
-    aspectRatio: 3 / 4,
-  },
-  cameraOverlay: {
-    position: "absolute",
-    bottom: 20,
-    left: 0,
-    right: 0,
+  cameraPlaceholder: {
+    height: 380,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
     alignItems: "center",
+    padding: 24,
   },
-  locationText: {
-    color: "#fff",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 8,
-    borderRadius: 4,
+  placeholderText: {
+    marginTop: 16,
+    fontWeight: "600",
+  },
+  placeholderSubtext: {
+    textAlign: "center",
+    marginTop: 8,
+    color: "#666",
+    marginBottom: 24,
+  },
+  buttonGroup: {
+    width: "100%",
+    gap: 12,
+  },
+  locationTag: {
+    marginTop: 16,
+    color: "#1976d2",
+    backgroundColor: "#e3f2fd",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   captureButton: {
-    margin: 16,
+    width: "100%",
   },
-  previewContainer: {
+  demoButton: {
+    width: "100%",
+  },
+  photoContainer: {
+    height: 440,
     padding: 16,
   },
-  preview: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 8,
+  photoPreview: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: "#000",
+    resizeMode: "cover",
   },
   retakeButton: {
-    marginTop: 16,
+    marginTop: 12,
   },
   formContainer: {
     padding: 16,
-    backgroundColor: "#fff",
   },
   label: {
     marginBottom: 8,
@@ -370,27 +395,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: "#666",
   },
-  infoBox: {
-    backgroundColor: "#e3f2fd",
-    padding: 12,
-    borderRadius: 8,
-    marginVertical: 16,
-  },
-  infoText: {
-    color: "#1976d2",
-  },
   submitButton: {
-    marginTop: 8,
-  },
-  permissionText: {
-    marginBottom: 16,
-    textAlign: "center",
-    padding: 16,
-  },
-  errorText: {
-    color: "#d32f2f",
-    textAlign: "center",
-    marginBottom: 16,
-    paddingHorizontal: 16,
+    marginTop: 24,
   },
 });
