@@ -7,21 +7,29 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { Text, Button, Card, Divider, MD3DarkTheme } from "react-native-paper";
+import { Text, Button, Card, Divider } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useMobileWallet } from "../utils/useMobileWallet";
-import { irysService } from "../services/irysService";
 import { tokenService, TokenBalance } from "../services/tokenService";
 import { useAppMode } from "../context/AppModeContext";
+import { demoPostStore, ImageType } from "../services/demoPostStore";
+import { supabaseService } from "../services/supabaseService";
+
+// Bundled images
+const POST_IMAGES = {
+  good: require("../../assets/good.png"),
+  bad: require("../../assets/bad.png"),
+  general: require("../../assets/general.png"),
+};
 
 interface Post {
   id: string;
   latitude: number;
   longitude: number;
-  photoUrl: string;
+  image_type: ImageType;
   memo: string;
   creator: string;
   timestamp: number;
@@ -36,12 +44,35 @@ export function PostDetailScreen() {
   const { selectedAccount, authorizeSession } = useAuthorization();
   const { transact, signAndSendTransaction } = useMobileWallet();
   const { mode } = useAppMode();
-  const { post }: { post: Post } = route.params as any;
+  const routeParams = route.params as any;
+  const post: Post | undefined = routeParams?.post;
 
   const [tipAmount, setTipAmount] = useState("");
   const [isTipping, setIsTipping] = useState(false);
   const [skrBalance, setSkrBalance] = useState<TokenBalance | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
+  // Handle missing post data - must be before any hooks that use post
+  if (!post) {
+    return (
+      <View style={[styles.wrapper, styles.centered]}>
+        <Text variant="bodyLarge" style={{ color: "#F8FAFC" }}>
+          Post not found
+        </Text>
+        <Button
+          mode="contained"
+          onPress={() => navigation.goBack()}
+          style={{ marginTop: 20 }}
+          buttonColor="#EAB308"
+        >
+          Go Back
+        </Button>
+      </View>
+    );
+  }
+
+  // Now TypeScript knows post is defined
+  const currentPost = post;
 
   useEffect(() => {
     if (selectedAccount?.address && mode === "real") {
@@ -95,16 +126,8 @@ export function PostDetailScreen() {
       return;
     }
 
-    if (post.creator === selectedAccount.address) {
-      Alert.alert("Error", "You cannot tip your own post");
-      return;
-    }
-
-    if (mode === "real" && skrBalance && skrBalance.uiAmount < amount) {
-      Alert.alert(
-        "Insufficient Balance",
-        `You only have ${skrBalance.uiAmount.toFixed(2)} SKR. Please enter a smaller amount.`
-      );
+    if (mode === "real" && skrBalance && amount > skrBalance.uiAmount) {
+      Alert.alert("Error", "Insufficient SKR balance");
       return;
     }
 
@@ -117,40 +140,33 @@ export function PostDetailScreen() {
           throw new Error("Not authorized");
         }
 
-        await irysService.initialize(auth, mode);
-
         if (mode === "real") {
+          // Real mode: transfer SKR and record tip in Supabase
           const signTx = async (tx: Transaction): Promise<string> => {
             return await signAndSendTransaction(tx, 0);
           };
 
           await tokenService.transferSKR(
             selectedAccount,
-            post.creator,
+            currentPost.creator,
             amount,
             signTx
           );
 
-          await irysService.recordTip(
-            post.id,
-            amount,
+          await supabaseService.recordTip(
+            currentPost.id,
             selectedAccount.address,
-            mode,
-            async (tx) => {
-              const signatures = await wallet.signAndSendTransactions({
-                transactions: [tx],
-              });
-              return signatures[0];
-            }
+            amount
           );
 
           Alert.alert(
             "Success",
-            `You tipped ${amount} SKR to ${post.creator.slice(0, 8)}...${post.creator.slice(-4)}!`,
+            `You tipped ${amount} SKR to ${currentPost.creator.slice(0, 8)}...${currentPost.creator.slice(-4)}!`,
             [{ text: "OK" }]
           );
         } else {
-          await irysService.recordTip(post.id, amount, selectedAccount.address, mode);
+          // Demo mode: just update tips in demo store
+          demoPostStore.updatePostTips(currentPost.id, amount);
 
           Alert.alert(
             "Success",
@@ -165,173 +181,182 @@ export function PostDetailScreen() {
 
         setTipAmount("");
       });
-    } catch (error) {
-      console.error("Failed to tip:", error);
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Failed to send tip. Please try again."
-      );
+    } catch (error: any) {
+      console.error("Tip error:", error);
+      Alert.alert("Error", error.message || "Failed to send tip");
     } finally {
       setIsTipping(false);
     }
   };
 
   const isTipButtonDisabled = () => {
-    if (isTipping) return true;
-    if (!selectedAccount) return true;
-    if (!tipAmount) return true;
-
+    if (!selectedAccount || isTipping) return true;
     const amount = parseInt(tipAmount);
     if (isNaN(amount) || amount <= 0) return true;
-
-    if (mode === "real" && skrBalance && skrBalance.uiAmount < amount) {
-      return true;
-    }
-
+    if (mode === "real" && skrBalance && amount > skrBalance.uiAmount) return true;
     return false;
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Image source={{ uri: post.photoUrl }} style={styles.image} />
+    <View style={styles.wrapper}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Image 
+            source={POST_IMAGES[currentPost.image_type || 'general']} 
+            style={styles.image} 
+            resizeMode="cover"
+          />
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color="#000" />
-          </View>
-          <View style={styles.headerText}>
-            <Text variant="bodyLarge" style={styles.creator}>
-              {post.creator.slice(0, 8)}...{post.creator.slice(-4)}
-            </Text>
-            <Text variant="bodySmall" style={styles.date}>
-              {formatDate(post.timestamp)}
-            </Text>
-          </View>
-          <View style={styles.expiryBadge}>
-            <Text variant="bodySmall" style={styles.expiryText}>
-              {formatTimeLeft(post.expiry)}
-            </Text>
-          </View>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        <Text variant="bodyLarge" style={styles.memo}>
-          {post.memo}
-        </Text>
-
-        <View style={styles.locationContainer}>
-          <Ionicons name="location" size={20} color="#EAB308" />
-          <Text variant="bodySmall" style={styles.locationText}>
-            {post.latitude.toFixed(4)}, {post.longitude.toFixed(4)}
-            {post.distance && ` • ${Math.round(post.distance)}m away`}
-          </Text>
-        </View>
-
-        {post.tips > 0 && (
-          <Card style={styles.tipsCard}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.tipsTitle}>
-                🎉 {post.tips} SKR tipped
-              </Text>
-            </Card.Content>
-          </Card>
-        )}
-
-        {selectedAccount?.address !== post.creator && (
-          <View style={[styles.tipSection, !selectedAccount && { opacity: 0.6 }]}>
-            <Text variant="titleLarge" style={styles.tipTitle}>
-              Support this Creator
-            </Text>
-            <Text variant="bodyMedium" style={styles.tipDescription}>
-              {mode === "demo"
-                ? "Demo mode - tips are simulated (no real tokens)"
-                : "Send real SKR tokens to show appreciation"}
-            </Text>
-
-            {mode === "real" && selectedAccount && (
-              <View style={styles.balanceContainer}>
-                <Ionicons name="wallet" size={18} color="#94A3B8" />
-                <Text variant="bodyMedium" style={styles.balanceText}>
-                  {isLoadingBalance
-                    ? "Loading balance..."
-                    : `Balance: ${skrBalance?.uiAmount.toFixed(2) ?? "0.00"} SKR`}
+          <View style={styles.detailsContainer}>
+            <View style={styles.header}>
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={24} color="#000" />
+              </View>
+              <View style={styles.headerText}>
+                <Text variant="bodyLarge" style={styles.creator}>
+                  {currentPost.creator.slice(0, 8)}...{currentPost.creator.slice(-4)}
                 </Text>
+                <Text variant="bodySmall" style={styles.date}>
+                  {formatDate(currentPost.timestamp)}
+                </Text>
+              </View>
+              <View style={styles.expiryBadge}>
+                <Text variant="bodySmall" style={styles.expiryText}>
+                  {formatTimeLeft(currentPost.expiry)}
+                </Text>
+              </View>
+            </View>
+
+            <Divider style={styles.divider} />
+
+            <Text variant="bodyLarge" style={styles.memo}>
+              {currentPost.memo}
+            </Text>
+
+            <View style={styles.locationContainer}>
+              <Ionicons name="location" size={20} color="#EAB308" />
+              <Text variant="bodySmall" style={styles.locationText}>
+                {currentPost.latitude.toFixed(4)}, {currentPost.longitude.toFixed(4)}
+                {currentPost.distance && ` • ${Math.round(currentPost.distance)}m away`}
+              </Text>
+            </View>
+
+            {currentPost.tips > 0 && (
+              <Card style={styles.tipsCard}>
+                <Card.Content>
+                  <Text variant="titleMedium" style={styles.tipsTitle}>
+                    {currentPost.tips} SKR tipped
+                  </Text>
+                </Card.Content>
+              </Card>
+            )}
+
+            {selectedAccount?.address !== currentPost.creator && (
+              <View style={styles.tipSection}>
+                <Text variant="titleLarge" style={styles.tipTitle}>
+                  Support this Creator
+                </Text>
+                <Text variant="bodyMedium" style={styles.tipDescription}>
+                  {mode === "demo"
+                    ? "Demo mode - tips are simulated (no real tokens)"
+                    : "Send real SKR tokens to show appreciation"}
+                </Text>
+
+                {mode === "real" && selectedAccount && (
+                  <View style={styles.balanceContainer}>
+                    <Ionicons name="wallet" size={18} color="#94A3B8" />
+                    <Text variant="bodyMedium" style={styles.balanceText}>
+                      {isLoadingBalance
+                        ? "Loading balance..."
+                        : `Balance: ${skrBalance?.uiAmount.toFixed(2) ?? "0.00"} SKR`}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.tipInputContainer}>
+                  <TextInput
+                    style={[
+                      styles.tipInput,
+                      !selectedAccount && { backgroundColor: "#1e293b", opacity: 0.5 },
+                    ]}
+                    placeholder={
+                      selectedAccount ? "Amount (SKR)" : "Connect wallet to tip"
+                    }
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="number-pad"
+                    value={tipAmount}
+                    onChangeText={setTipAmount}
+                    editable={!!selectedAccount}
+                  />
+                  <Button
+                    mode="contained"
+                    onPress={
+                      selectedAccount
+                        ? handleTip
+                        : () =>
+                          Alert.alert(
+                            "Sign In Required",
+                            "Please connect your wallet to tip."
+                          )
+                    }
+                    loading={isTipping}
+                    disabled={isTipButtonDisabled()}
+                    style={styles.tipButton}
+                    buttonColor="#EAB308"
+                    textColor="#000"
+                  >
+                    {isTipping ? "Sending..." : "Tip"}
+                  </Button>
+                </View>
               </View>
             )}
 
-            <View style={styles.tipInputContainer}>
-              <TextInput
-                style={[
-                  styles.tipInput,
-                  !selectedAccount && { backgroundColor: "#1e293b", opacity: 0.5 },
-                ]}
-                placeholder={
-                  selectedAccount ? "Amount (SKR)" : "Connect wallet to tip"
-                }
-                placeholderTextColor="#94A3B8"
-                keyboardType="number-pad"
-                value={tipAmount}
-                onChangeText={setTipAmount}
-                editable={!!selectedAccount}
-              />
-              <Button
-                mode="contained"
-                onPress={
-                  selectedAccount
-                    ? handleTip
-                    : () =>
-                      Alert.alert(
-                        "Sign In Required",
-                        "Please connect your wallet to tip."
-                      )
-                }
-                loading={isTipping}
-                disabled={isTipButtonDisabled()}
-                style={styles.tipButton}
-                buttonColor="#EAB308"
-                textColor="#000"
-              >
-                {isTipping ? "Sending..." : "Tip"}
-              </Button>
+            <View style={styles.infoBox}>
+              <Text variant="bodySmall" style={styles.infoText}>
+                {mode === "real"
+                  ? `This post expires in ${formatTimeLeft(currentPost.expiry)} and will no longer be discoverable on the map.`
+                  : `This post expires in ${formatTimeLeft(currentPost.expiry)}. Demo mode - stored locally only.`}
+              </Text>
             </View>
-
-            {mode === "real" &&
-              selectedAccount &&
-              skrBalance &&
-              skrBalance.uiAmount === 0 && (
-                <Text variant="bodySmall" style={styles.insufficientBalance}>
-                  ⚠️ Insufficient balance for tipping
-                </Text>
-              )}
           </View>
-        )}
-
-        <View style={styles.infoBox}>
-          <Text variant="bodySmall" style={styles.infoText}>
-            ℹ️ {mode === "real"
-              ? `This post expires in ${formatTimeLeft(post.expiry)} and will no longer be discoverable on the map. The on-chain proof is permanent.`
-              : `This post expires in ${formatTimeLeft(post.expiry)}. Demo mode - stored locally only.`}
-          </Text>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  content: {
     flex: 1,
     backgroundColor: "#0F172A",
   },
   image: {
     width: "100%",
-    aspectRatio: 1,
+    height: 300,
     backgroundColor: "#1E293B",
   },
-  content: {
+  detailsContainer: {
     padding: 20,
+    backgroundColor: "#0F172A",
   },
   header: {
     flexDirection: "row",
@@ -432,53 +457,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: "#1E293B",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
+    borderRadius: 8,
   },
   balanceText: {
-    marginLeft: 10,
-    color: "#3B82F6",
-    fontWeight: "600",
+    color: "#94A3B8",
+    marginLeft: 8,
   },
   tipInputContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    gap: 12,
   },
   tipInput: {
     flex: 1,
     backgroundColor: "#1E293B",
+    color: "#F8FAFC",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
     borderWidth: 1,
     borderColor: "#334155",
-    borderRadius: 12,
-    padding: 14,
-    marginRight: 12,
-    fontSize: 16,
-    color: "#F8FAFC",
   },
   tipButton: {
-    minWidth: 110,
-    height: 52,
-    justifyContent: "center",
-    borderRadius: 12,
-  },
-  insufficientBalance: {
-    color: "#EF4444",
-    marginTop: 12,
-    textAlign: "center",
-    fontWeight: "500",
+    minWidth: 100,
   },
   infoBox: {
-    backgroundColor: "#1E293B",
+    marginTop: 24,
     padding: 16,
+    backgroundColor: "#1E293B",
     borderRadius: 12,
-    marginTop: 32,
     borderWidth: 1,
     borderColor: "#334155",
   },
   infoText: {
     color: "#94A3B8",
-    textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });

@@ -38,3 +38,11 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Database
+*.sql
+SUPABASE_SETUP.md
+
+# IDE
+.vscode/
+.idea/

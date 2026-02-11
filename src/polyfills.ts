@@ -3,19 +3,17 @@ import { Buffer } from "buffer";
 
 global.Buffer = Buffer;
 
-// getRandomValues polyfill
-class Crypto {
-  getRandomValues = expoCryptoGetRandomValues;
-}
-
-const webCrypto = typeof crypto !== "undefined" ? crypto : new Crypto();
-
-(() => {
-  if (typeof crypto === "undefined") {
-    Object.defineProperty(window, "crypto", {
+// getRandomValues polyfill for React Native
+try {
+  if (typeof global.crypto === "undefined") {
+    Object.defineProperty(global, "crypto", {
       configurable: true,
       enumerable: true,
-      get: () => webCrypto,
+      value: {
+        getRandomValues: expoCryptoGetRandomValues,
+      },
     });
   }
-})();
+} catch (error) {
+  console.error("Error applying crypto polyfill:", error);
+}

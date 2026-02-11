@@ -37,7 +37,7 @@ type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
   Map: undefined;
-  CreatePost: undefined;
+  CreatePost: { location?: any };
   PostDetail: { post: any };
   Profile: undefined;
 };

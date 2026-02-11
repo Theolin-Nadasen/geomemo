@@ -15,17 +15,125 @@ import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useNavigation } from "@react-navigation/native";
 import { demoPostStore } from "../services/demoPostStore";
-import { irysService } from "../services/irysService";
+import { supabaseService } from "../services/supabaseService";
 import { useAppMode } from "../context/AppModeContext";
 
-const DEMO_IMG_1 = require("../../assets/demo1.png");
-const DEMO_IMG_2 = require("../../assets/demo2.png");
+// Bundled images for posts
+const POST_IMAGES = {
+  good: require("../../assets/good.png"),
+  bad: require("../../assets/bad.png"),
+  general: require("../../assets/general.png"),
+};
+
+// Dark theme map style for Google Maps
+const darkMapStyle = [
+  {
+    "elementType": "geometry",
+    "stylers": [{ "color": "#0F172A" }]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#94A3B8" }]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [{ "color": "#0F172A" }]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#1E293B" }]
+  },
+  {
+    "featureType": "administrative.country",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#EAB308" }]
+  },
+  {
+    "featureType": "administrative.land_parcel",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#F8FAFC" }]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#94A3B8" }]
+  },
+  {
+    "featureType": "poi.business",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#064E3B" }]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#6EE7B7" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#1E293B" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#334155" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#94A3B8" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#334155" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#1E293B" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#F8FAFC" }]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#1E293B" }]
+  },
+  {
+    "featureType": "transit.station",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#94A3B8" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#1E3A8A" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#60A5FA" }]
+  }
+];
 
 interface GeoPost {
   id: string;
   latitude: number;
   longitude: number;
-  photoUrl: string;
+  image_type: 'good' | 'bad' | 'general';
   memo: string;
   creator: string;
   timestamp: number;
@@ -72,7 +180,7 @@ export function MapScreen() {
         id: "demo-1",
         latitude: lat + 0.0002,
         longitude: long + 0.0002,
-        photoUrl: Image.resolveAssetSource(DEMO_IMG_1).uri,
+        image_type: 'good' as const,
         memo: "Checking out this cool spot! The view is amazing.",
         creator: "7xKX...2CW8",
         timestamp: now - 3600000,
@@ -83,7 +191,7 @@ export function MapScreen() {
         id: "demo-2",
         latitude: lat - 0.0003,
         longitude: long - 0.0001,
-        photoUrl: Image.resolveAssetSource(DEMO_IMG_2).uri,
+        image_type: 'general' as const,
         memo: "Found a hidden gem here. Great coffee nearby too!",
         creator: "ABC1...3XYZ",
         timestamp: now - 86400000,
@@ -137,18 +245,26 @@ export function MapScreen() {
       // Demo mode: use mock posts
       const standardMocks = createMockPosts(loc.coords.latitude, loc.coords.longitude);
       const userMocks = demoPostStore.getPosts().map(p => ({
-        ...p,
+        id: p.id,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        image_type: p.image_type,
+        memo: p.memo,
+        creator: p.creator,
+        timestamp: p.timestamp,
+        expiry: p.expiry,
+        tips: p.tips,
         distance: haversine(loc.coords.latitude, loc.coords.longitude, p.latitude, p.longitude)
       }));
 
       const combined = [...userMocks, ...standardMocks].sort((a, b) => b.timestamp - a.timestamp);
       setPosts(combined);
     } else {
-      // Real mode: query from Irys
+      // Real mode: query from Supabase
       setIsLoadingRealPosts(true);
       try {
         const geohash = encodeGeohash(loc.coords.latitude, loc.coords.longitude, 5); // 5 chars = ~2.4km
-        const realPosts = await irysService.queryPostsByGeohash(geohash, mode);
+        const realPosts = await supabaseService.queryPostsByGeohash(geohash);
 
         const postsWithDistance = realPosts.map(p => ({
           ...p,
@@ -284,7 +400,7 @@ export function MapScreen() {
 
   const renderPostCard = ({ item }: { item: GeoPost }) => (
     <Card style={styles.card} onPress={() => navigation.navigate("PostDetail", { post: item })}>
-      <Card.Cover source={{ uri: item.photoUrl }} style={styles.cardImage} />
+      <Card.Cover source={POST_IMAGES[item.image_type]} style={styles.cardImage} />
       <Card.Content>
         <Text variant="bodyMedium" numberOfLines={2}>
           {item.memo}
@@ -346,6 +462,7 @@ export function MapScreen() {
         <MapView
           style={styles.map}
           userInterfaceStyle="dark"
+          customMapStyle={darkMapStyle}
           region={
             location
               ? {
@@ -430,7 +547,9 @@ export function MapScreen() {
 
       <TouchableOpacity
         style={styles.fabContainer}
-        onPress={() => navigation.navigate("CreatePost")}
+        onPress={() => navigation.navigate("CreatePost", { 
+          location: latestLocation.current || location 
+        })}
       >
         <View style={[styles.fab, { backgroundColor: "#EAB308" }]}>
           <Ionicons name="add-circle" size={24} color="#000" />

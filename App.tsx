@@ -2,7 +2,7 @@
 import "./src/polyfills";
 
 import { useEffect, useState, useCallback } from "react";
-import { StyleSheet, useColorScheme, View, Text } from "react-native";
+import { StyleSheet, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';

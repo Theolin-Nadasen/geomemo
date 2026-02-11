@@ -1,11 +1,13 @@
 // Simple in-memory store for demo posts
-// In production, this would be replaced by real Irys queries
+// Real mode uses Supabase instead
+
+export type ImageType = 'good' | 'bad' | 'general';
 
 export interface DemoPost {
     id: string;
     latitude: number;
     longitude: number;
-    photoUrl: string;
+    image_type: ImageType;
     memo: string;
     creator: string;
     timestamp: number;
@@ -25,6 +27,19 @@ export const demoPostStore = {
         userCreatedPosts = [post, ...userCreatedPosts];
         // Notify all listeners
         listeners.forEach(listener => listener());
+    },
+
+    // Update tips for a post
+    updatePostTips: (postId: string, amount: number) => {
+        const postIndex = userCreatedPosts.findIndex(p => p.id === postId);
+        if (postIndex !== -1) {
+            userCreatedPosts[postIndex] = {
+                ...userCreatedPosts[postIndex],
+                tips: userCreatedPosts[postIndex].tips + amount
+            };
+            // Notify all listeners
+            listeners.forEach(listener => listener());
+        }
     },
 
     // Get all user-created posts
