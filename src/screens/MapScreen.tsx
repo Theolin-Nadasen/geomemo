@@ -13,7 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { demoPostStore } from "../services/demoPostStore";
 import { supabaseService } from "../services/supabaseService";
 import { useAppMode } from "../context/AppModeContext";
@@ -386,6 +386,15 @@ export function MapScreen() {
     setRefreshing(false);
   }, [location, updatePosts]);
 
+  // Refresh posts when returning to this screen (e.g., after creating a post)
+  useFocusEffect(
+    useCallback(() => {
+      if (location) {
+        updatePosts(location);
+      }
+    }, [location, updatePosts])
+  );
+
   const formatDistance = (meters?: number) => {
     if (!meters) return "";
     return meters < 1000 ? `${Math.round(meters)}m away` : `${(meters / 1000).toFixed(1)}km away`;
@@ -400,7 +409,9 @@ export function MapScreen() {
 
   const renderPostCard = ({ item }: { item: GeoPost }) => (
     <Card style={styles.card} onPress={() => navigation.navigate("PostDetail", { post: item })}>
-      <Card.Cover source={POST_IMAGES[item.image_type]} style={styles.cardImage} />
+      <View style={styles.cardImageContainer}>
+        <Image source={POST_IMAGES[item.image_type]} style={styles.cardImage} resizeMode="contain" />
+      </View>
       <Card.Content>
         <Text variant="bodyMedium" numberOfLines={2}>
           {item.memo}
@@ -614,8 +625,16 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
     overflow: "hidden",
   },
+  cardImageContainer: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#0F172A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   cardImage: {
-    height: 200,
+    width: "100%",
+    height: "100%",
   },
   cardMeta: {
     flexDirection: "row",

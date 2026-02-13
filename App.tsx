@@ -1,7 +1,7 @@
 // Polyfills
 import "./src/polyfills";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { StyleSheet, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Font from 'expo-font';
@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   DarkTheme as NavigationDarkTheme,
   DefaultTheme as NavigationDefaultTheme,
+  NavigationContainerRef,
 } from "@react-navigation/native";
 import {
   PaperProvider,
@@ -24,16 +25,23 @@ import { AppNavigator } from "./src/navigators/AppNavigator";
 import { ClusterProvider } from "./src/components/cluster/cluster-data-access";
 import { AppModeProvider, useAppMode } from "./src/context/AppModeContext";
 import { StartupModeModal } from "./src/components/startup-mode-modal";
+import { 
+  initializeNotifications,
+  setupNotificationResponseListener 
+} from "./src/services/notificationService";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// Navigation ref for handling notification taps
+export const navigationRef = React.createRef<NavigationContainerRef<any>>();
+
 function AppContent() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showModeModal, setShowModeModal] = useState(true);
-  const { mode, setMode, isLoading } = useAppMode();
+  const { mode, setMode, isLoading, hasSelectedMode } = useAppMode();
   const colorScheme = useColorScheme();
 
   useEffect(() => {
@@ -43,14 +51,30 @@ function AppContent() {
           ...Ionicons.font,
           ...MaterialCommunityIcons.font,
         });
+        
+        // Initialize notifications (non-blocking)
+        await initializeNotifications();
       } catch (e) {
-        console.warn("Error loading fonts:", e);
+        console.warn("Error during app preparation:", e);
       } finally {
         setAppIsReady(true);
       }
     }
 
     prepare();
+  }, []);
+
+  // Hide modal if user has already selected real mode previously
+  useEffect(() => {
+    if (!isLoading && hasSelectedMode && mode === "real") {
+      setShowModeModal(false);
+    }
+  }, [isLoading, hasSelectedMode, mode]);
+  
+  // Set up notification response listener
+  useEffect(() => {
+    const cleanup = setupNotificationResponseListener(navigationRef);
+    return cleanup;
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
@@ -61,7 +85,10 @@ function AppContent() {
 
   const handleModeSelect = async (selectedMode: "demo" | "real") => {
     await setMode(selectedMode);
-    setShowModeModal(false);
+    // Only hide modal if real mode selected, keep showing for demo mode
+    if (selectedMode === "real") {
+      setShowModeModal(false);
+    }
   };
 
   if (!appIsReady || isLoading) {
@@ -128,7 +155,7 @@ function AppContent() {
                   : CombinedDefaultTheme
               }
             >
-              <AppNavigator />
+              <AppNavigator ref={navigationRef} />
 
               {/* Mode Selection Modal - Shows on startup */}
               <StartupModeModal

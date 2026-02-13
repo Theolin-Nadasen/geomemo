@@ -37,32 +37,7 @@ export function CreatePostScreen() {
   const [selectedImage, setSelectedImage] = useState<ImageType>('general');
   const [memo, setMemo] = useState("");
   const [location, setLocation] = useState<Location.LocationObject | null>(initialLocation || null);
-  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
-  // Manual refresh location (optional)
-  const refreshLocation = async () => {
-    if (isRefreshingLocation) return;
-    
-    setIsRefreshingLocation(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission required", "Location permission is needed.");
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setLocation(loc);
-    } catch (e) {
-      console.error("Failed to refresh location:", e);
-      Alert.alert("Error", "Could not refresh location. Using previous location.");
-    } finally {
-      setIsRefreshingLocation(false);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!selectedAccount) {
@@ -176,28 +151,10 @@ export function CreatePostScreen() {
               <Text style={styles.locationText}>
                 📍 {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
               </Text>
-              <Button
-                mode="text"
-                onPress={refreshLocation}
-                loading={isRefreshingLocation}
-                textColor="#EAB308"
-                style={styles.refreshButton}
-              >
-                Refresh Location
-              </Button>
             </View>
           ) : (
             <View style={styles.locationStatus}>
-              <Text style={styles.errorText}>Location not available</Text>
-              <Button
-                mode="outlined"
-                onPress={refreshLocation}
-                loading={isRefreshingLocation}
-                style={styles.locationButton}
-                textColor="#EAB308"
-              >
-                Get Location
-              </Button>
+              <Text style={styles.errorText}>Location not available. Please try again.</Text>
             </View>
           )}
         </View>
@@ -285,11 +242,6 @@ const styles = StyleSheet.create({
   locationSection: {
     marginBottom: 24,
   },
-  locationButton: {
-    borderColor: "#EAB308",
-    borderWidth: 2,
-    marginTop: 8,
-  },
   locationStatus: {
     backgroundColor: "#1E293B",
     borderRadius: 8,
@@ -299,14 +251,9 @@ const styles = StyleSheet.create({
   locationText: {
     color: "#94A3B8",
     fontSize: 16,
-    marginBottom: 8,
   },
   errorText: {
     color: "#EF4444",
-    marginBottom: 8,
-  },
-  refreshButton: {
-    marginTop: 4,
   },
   submitButton: {
     marginTop: 8,

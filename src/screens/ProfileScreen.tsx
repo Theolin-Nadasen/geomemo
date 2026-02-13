@@ -10,86 +10,63 @@ import {
 } from "react-native";
 import { Text, Button, Card, MD3DarkTheme } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Location from "expo-location";
 import { useAuthorization } from "../utils/useAuthorization";
 import { useMobileWallet } from "../utils/useMobileWallet";
 import { SignInFeature } from "../components/sign-in/sign-in-feature";
 import { useNavigation } from "@react-navigation/native";
+import { useAppMode } from "../context/AppModeContext";
+import { supabaseService, Post } from "../services/supabaseService";
+import { demoPostStore } from "../services/demoPostStore";
 
-const DEMO_IMG_1 = require("../../assets/demo1.png");
-const DEMO_IMG_2 = require("../../assets/demo2.png");
-
-interface UserPost {
-  id: string;
-  latitude: number;
-  longitude: number;
-  photoUrl: string;
-  memo: string;
-  creator: string;
-  timestamp: number;
-  expiry: number;
-  tips: number;
-  status: "active" | "deleted";
-}
-
-const getMockUserPosts = (): UserPost[] => [
-  {
-    id: "1",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    photoUrl: Image.resolveAssetSource(DEMO_IMG_1).uri,
-    memo: "Checking out this cool spot! The view is amazing.",
-    creator: "7xKXtg2CW85d...",
-    timestamp: Date.now() - 3600000,
-    expiry: Date.now() + 6 * 86400000,
-    tips: 150,
-    status: "active",
-  },
-  {
-    id: "2",
-    latitude: 37.7755,
-    longitude: -122.4185,
-    photoUrl: Image.resolveAssetSource(DEMO_IMG_2).uri,
-    memo: "Found a hidden gem here. Great coffee nearby too!",
-    creator: "7xKXtg2CW85d...",
-    timestamp: Date.now() - 86400000,
-    expiry: Date.now() + 5 * 86400000,
-    tips: 75,
-    status: "active",
-  },
-];
+// Bundled images
+const POST_IMAGES = {
+  good: require("../../assets/good.png"),
+  bad: require("../../assets/bad.png"),
+  general: require("../../assets/general.png"),
+};
 
 export function ProfileScreen() {
   const { selectedAccount } = useAuthorization();
   const { disconnect } = useMobileWallet();
+  const { mode, setMode } = useAppMode();
   const navigation = useNavigation();
-  const [posts, setPosts] = useState<UserPost[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [debugLocation, setDebugLocation] = useState<Location.LocationObject | null>(null);
 
   useEffect(() => {
     if (selectedAccount) {
       loadUserPosts();
     }
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({});
-          setDebugLocation(loc);
-        }
-      } catch (e) {
-        console.warn("Profile location fetch failed", e);
-      }
-    })();
-  }, [selectedAccount]);
+  }, [selectedAccount, mode]);
 
   const loadUserPosts = async () => {
-    const allPosts = getMockUserPosts();
-    const activePosts = allPosts.filter(
-      (post) => post.status === "active"
-    );
-    setPosts(activePosts);
+    if (!selectedAccount) return;
+
+    if (mode === "demo") {
+      // Demo mode: get posts from demo store
+      const demoPosts = demoPostStore.getPosts().filter(
+        post => post.creator === selectedAccount.publicKey.toBase58()
+      );
+      // Convert DemoPost to Post format
+      const convertedPosts: Post[] = demoPosts.map(post => ({
+        id: post.id,
+        creator: post.creator,
+        latitude: post.latitude,
+        longitude: post.longitude,
+        geohash: '',
+        memo: post.memo,
+        image_type: post.image_type,
+        timestamp: post.timestamp,
+        expiry: post.expiry,
+        tips: post.tips,
+      }));
+      setPosts(convertedPosts);
+    } else {
+      // Real mode: get posts from Supabase
+      const creatorAddress = selectedAccount.publicKey.toBase58();
+      const realPosts = await supabaseService.getPostsByCreator(creatorAddress);
+      setPosts(realPosts);
+    }
   };
 
   const onRefresh = async () => {
@@ -123,19 +100,21 @@ export function ProfileScreen() {
   const handleDeletePost = (postId: string) => {
     Alert.alert(
       "Delete GeoMemo",
-      "This will hide your post from the app, but it will remain permanently stored on-chain. Are you sure?",
+      "This will hide your post from the app. Are you sure?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setPosts((prev) =>
-              prev.map((post) =>
-                post.id === postId ? { ...post, status: "deleted" } : post
-              )
-            );
-            setPosts((prev) => prev.filter((post) => post.id !== postId));
+            if (mode === "demo") {
+              // In demo mode, just remove from local state
+              setPosts((prev) => prev.filter((post) => post.id !== postId));
+            } else {
+              // In real mode, we would need to update the post status in Supabase
+              // For now, just remove from local state
+              setPosts((prev) => prev.filter((post) => post.id !== postId));
+            }
           },
         },
       ]
@@ -159,13 +138,13 @@ export function ProfileScreen() {
     });
   };
 
-  const renderPostCard = ({ item }: { item: UserPost }) => (
+  const renderPostCard = ({ item }: { item: Post }) => (
     <Card
       style={styles.card}
       onPress={() => navigation.navigate("PostDetail", { post: { ...item, distance: 0 } })}
     >
       <View style={styles.cardContent}>
-        <Image source={{ uri: item.photoUrl }} style={styles.cardImage} />
+        <Image source={POST_IMAGES[item.image_type]} style={styles.cardImage} resizeMode="cover" />
         <View style={styles.cardInfo}>
           <Text variant="bodyLarge" numberOfLines={1} style={styles.memo}>
             {item.memo}
@@ -236,6 +215,35 @@ export function ProfileScreen() {
         </View>
       </View>
 
+      <View style={styles.modeSection}>
+        <Text variant="titleMedium" style={styles.sectionTitle}>
+          APP MODE
+        </Text>
+        <View style={styles.modeToggle}>
+          <Button
+            mode={mode === "demo" ? "contained" : "outlined"}
+            onPress={() => setMode("demo")}
+            style={[styles.modeButton, mode === "demo" && { backgroundColor: "#EAB308" }]}
+            textColor={mode === "demo" ? "#000" : "#EAB308"}
+          >
+            Demo
+          </Button>
+          <Button
+            mode={mode === "real" ? "contained" : "outlined"}
+            onPress={() => setMode("real")}
+            style={[styles.modeButton, mode === "real" && { backgroundColor: "#3B82F6" }]}
+            textColor={mode === "real" ? "#fff" : "#3B82F6"}
+          >
+            Real
+          </Button>
+        </View>
+        <Text variant="bodySmall" style={styles.modeDescription}>
+          {mode === "demo" 
+            ? "Demo mode - posts stored locally, simulated tips" 
+            : "Real mode - posts stored in Supabase, real SKR tips"}
+        </Text>
+      </View>
+
       <Text variant="titleMedium" style={styles.sectionTitle}>
         MY GEOMEMOS
       </Text>
@@ -271,7 +279,7 @@ export function ProfileScreen() {
           </View>
         }
       />
-    </View >
+    </View>
   );
 }
 
@@ -340,6 +348,27 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     letterSpacing: 1.5,
     fontSize: 12,
+  },
+  modeSection: {
+    marginBottom: 24,
+  },
+  modeToggle: {
+    flexDirection: "row",
+    backgroundColor: "#1E293B",
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  modeButton: {
+    flex: 1,
+    borderRadius: 8,
+  },
+  modeDescription: {
+    color: "#94A3B8",
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: "center",
   },
   listContainer: {
     paddingBottom: 24,

@@ -108,6 +108,25 @@ class SupabaseService {
   }
 
   /**
+   * Get posts by creator
+   */
+  async getPostsByCreator(creator: string): Promise<Post[]> {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('creator', creator)
+      .gt('expiry', Date.now())
+      .order('timestamp', { ascending: false });
+
+    if (error) {
+      console.error('Failed to get posts by creator:', error);
+      return [];
+    }
+
+    return (data as Post[]) || [];
+  }
+
+  /**
    * Record a tip for a post
    */
   async recordTip(postId: string, tipper: string, amount: number): Promise<void> {

@@ -46,3 +46,6 @@ SUPABASE_SETUP.md
 # IDE
 .vscode/
 .idea/
+
+# Development plans
+todo.md

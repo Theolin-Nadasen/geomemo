@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { Text, Button, Card, Portal, MD3DarkTheme } from "react-native-paper";
+import { Text, Button, Card, Portal } from "react-native-paper";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AppMode } from "../context/AppModeContext";
 
@@ -23,97 +23,14 @@ export function StartupModeModal({
   onDismiss,
 }: StartupModeModalProps) {
   const [selectedMode, setSelectedMode] = useState<AppMode>(initialMode);
-  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleModeSelect = (mode: AppMode) => {
     setSelectedMode(mode);
-    if (mode === "real") {
-      setShowConfirmation(true);
-    }
   };
 
-  const handleConfirmRealMode = () => {
-    onSelectMode("real");
-    setShowConfirmation(false);
+  const handleConfirm = () => {
+    onSelectMode(selectedMode);
   };
-
-  const handleCancelRealMode = () => {
-    setShowConfirmation(false);
-    setSelectedMode("demo");
-  };
-
-  const handleDemoConfirm = () => {
-    onSelectMode("demo");
-  };
-
-  if (showConfirmation) {
-    return (
-      <Portal>
-        <Modal
-          visible={visible}
-          transparent
-          animationType="fade"
-          onRequestClose={handleCancelRealMode}
-        >
-          <View style={styles.overlay}>
-            <Card style={styles.card}>
-              <Card.Content>
-                <View style={styles.warningHeader}>
-                  <Ionicons name="warning" size={32} color="#F59E0B" />
-                  <Text variant="headlineSmall" style={styles.warningTitle}>
-                    Real Mode Selected
-                  </Text>
-                </View>
-
-                <Text variant="bodyMedium" style={styles.warningText}>
-                  You are about to use Mainnet mode with real transactions:
-                </Text>
-
-                <View style={styles.bulletPoints}>
-                  <Text variant="bodyMedium" style={styles.bullet}>
-                    • Photos will be permanently stored on Arweave
-                  </Text>
-                  <Text variant="bodyMedium" style={styles.bullet}>
-                    • Tips use real SKR tokens
-                  </Text>
-                  <Text variant="bodyMedium" style={styles.bullet}>
-                    • Small SOL fees apply for transactions
-                  </Text>
-                  <Text variant="bodyMedium" style={styles.bullet}>
-                    • All transactions are permanent and irreversible
-                  </Text>
-                </View>
-
-                <Text variant="bodySmall" style={styles.costNote}>
-                  Estimated costs: ~0.0001 SOL per upload, ~0.000005 SOL per tip
-                </Text>
-
-                <View style={styles.buttonRow}>
-                  <Button
-                    mode="outlined"
-                    onPress={handleCancelRealMode}
-                    textColor="#94A3B8"
-                    style={{ flex: 1, marginRight: 8, borderColor: "#334155" }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    mode="contained"
-                    onPress={handleConfirmRealMode}
-                    buttonColor="#F59E0B"
-                    textColor="#000"
-                    style={{ flex: 1 }}
-                  >
-                    Confirm
-                  </Button>
-                </View>
-              </Card.Content>
-            </Card>
-          </View>
-        </Modal>
-      </Portal>
-    );
-  }
 
   return (
     <Portal>
@@ -169,9 +86,6 @@ export function StartupModeModal({
                     <Text variant="bodySmall" style={styles.modeDescription}>
                       • Tips are simulated (no real tokens)
                     </Text>
-                    <Text variant="bodySmall" style={styles.modeDescription}>
-                      • Perfect for testing and development
-                    </Text>
                   </Card.Content>
                 </Card>
 
@@ -201,47 +115,29 @@ export function StartupModeModal({
                       </Text>
                     </View>
                     <Text variant="bodySmall" style={styles.modeDescription}>
-                      • Posts stored permanently on Arweave
-                    </Text>
-                    <Text variant="bodySmall" style={styles.modeDescription}>
                       • Real SKR token transfers for tips
                     </Text>
                     <Text variant="bodySmall" style={styles.modeDescription}>
                       • Posts visible to all users worldwide
-                    </Text>
-                    <Text variant="bodySmall" style={styles.modeDescription}>
-                      • Small SOL fees for transactions
                     </Text>
                   </Card.Content>
                 </Card>
               </ScrollView>
 
               <View style={styles.buttonContainer}>
-                {selectedMode === "demo" ? (
-                  <Button
-                    mode="contained"
-                    onPress={handleDemoConfirm}
-                    style={styles.confirmButton}
-                    buttonColor="#EAB308"
-                    textColor="#000"
-                  >
-                    Start Demo Mode
-                  </Button>
-                ) : (
-                  <Button
-                    mode="contained"
-                    onPress={() => handleModeSelect("real")}
-                    style={styles.confirmButton}
-                    buttonColor="#3B82F6"
-                    textColor="#fff"
-                  >
-                    Continue to Real Mode
-                  </Button>
-                )}
+                <Button
+                  mode="contained"
+                  onPress={handleConfirm}
+                  style={styles.confirmButton}
+                  buttonColor={selectedMode === "demo" ? "#EAB308" : "#3B82F6"}
+                  textColor={selectedMode === "demo" ? "#000" : "#fff"}
+                >
+                  {selectedMode === "demo" ? "Start Demo Mode" : "Start Real Mode"}
+                </Button>
               </View>
 
               <Text variant="bodySmall" style={styles.footerNote}>
-                You can change modes later in Settings
+                You can change modes later in your Profile
               </Text>
             </Card.Content>
           </Card>
@@ -327,51 +223,5 @@ const styles = StyleSheet.create({
     marginTop: 16,
     color: "#64748B",
     fontSize: 12,
-  },
-  warningHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  warningTitle: {
-    marginLeft: 12,
-    fontWeight: "bold",
-    color: "#F59E0B",
-  },
-  warningText: {
-    marginBottom: 16,
-    fontWeight: "bold",
-    color: "#F8FAFC",
-    textAlign: "center",
-  },
-  bulletPoints: {
-    marginBottom: 20,
-    backgroundColor: "#0F172A",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  bullet: {
-    marginBottom: 6,
-    color: "#94A3B8",
-    fontSize: 14,
-  },
-  costNote: {
-    fontStyle: "italic",
-    color: "#64748B",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  actionButton: {
-    flex: 1,
-    height: 48,
-    justifyContent: "center",
-    borderRadius: 10,
   },
 });

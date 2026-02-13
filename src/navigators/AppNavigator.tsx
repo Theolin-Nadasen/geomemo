@@ -87,37 +87,40 @@ const AppStack = () => {
 export interface NavigationProps
   extends Partial<React.ComponentProps<typeof NavigationContainer>> {}
 
-export const AppNavigator = (props: NavigationProps) => {
-  const colorScheme = useColorScheme();
-  const { LightTheme, DarkTheme } = adaptNavigationTheme({
-    reactNavigationLight: NavigationDefaultTheme,
-    reactNavigationDark: NavigationDarkTheme,
-  });
+export const AppNavigator = React.forwardRef<any, NavigationProps>(
+  (props, ref) => {
+    const colorScheme = useColorScheme();
+    const { LightTheme, DarkTheme } = adaptNavigationTheme({
+      reactNavigationLight: NavigationDefaultTheme,
+      reactNavigationDark: NavigationDarkTheme,
+    });
 
-  const CombinedDefaultTheme = {
-    ...MD3LightTheme,
-    ...LightTheme,
-    colors: {
-      ...MD3LightTheme.colors,
-      ...LightTheme.colors,
-    },
-  };
-  const CombinedDarkTheme = {
-    ...MD3DarkTheme,
-    ...DarkTheme,
-    colors: {
-      ...MD3DarkTheme.colors,
-      ...DarkTheme.colors,
-    },
-  };
+    const CombinedDefaultTheme = {
+      ...MD3LightTheme,
+      ...LightTheme,
+      colors: {
+        ...MD3LightTheme.colors,
+        ...LightTheme.colors,
+      },
+    };
+    const CombinedDarkTheme = {
+      ...MD3DarkTheme,
+      ...DarkTheme,
+      colors: {
+        ...MD3DarkTheme.colors,
+        ...DarkTheme.colors,
+      },
+    };
 
-  return (
-    <NavigationContainer
-      theme={colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme}
-      {...props}
-    >
-      <StatusBar />
-      <AppStack />
-    </NavigationContainer>
-  );
-};
+    return (
+      <NavigationContainer
+        ref={ref}
+        theme={colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme}
+        {...props}
+      >
+        <StatusBar />
+        <AppStack />
+      </NavigationContainer>
+    );
+  }
+);

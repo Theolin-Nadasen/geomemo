@@ -17,6 +17,7 @@ import { tokenService, TokenBalance } from "../services/tokenService";
 import { useAppMode } from "../context/AppModeContext";
 import { demoPostStore, ImageType } from "../services/demoPostStore";
 import { supabaseService } from "../services/supabaseService";
+import { sendTipNotification } from "../services/notificationService";
 
 // Bundled images
 const POST_IMAGES = {
@@ -42,7 +43,7 @@ export function PostDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const { selectedAccount, authorizeSession } = useAuthorization();
-  const { transact, signAndSendTransaction } = useMobileWallet();
+  const { signAndSendTransaction } = useMobileWallet();
   const { mode } = useAppMode();
   const routeParams = route.params as any;
   const post: Post | undefined = routeParams?.post;
@@ -81,11 +82,12 @@ export function PostDetailScreen() {
   }, [selectedAccount?.address, mode]);
 
   const loadSKRBalance = async () => {
-    if (!selectedAccount?.address) return;
+    if (!selectedAccount?.publicKey) return;
 
     setIsLoadingBalance(true);
     try {
-      const balance = await tokenService.getSKRBalance(selectedAccount.address);
+      const address = selectedAccount.publicKey.toBase58();
+      const balance = await tokenService.getSKRBalance(address);
       setSkrBalance(balance);
     } catch (error) {
       console.error("Failed to load SKR balance:", error);
@@ -134,57 +136,76 @@ export function PostDetailScreen() {
     setIsTipping(true);
 
     try {
-      await transact(async (wallet) => {
-        const auth = await authorizeSession(wallet);
-        if (!auth) {
-          throw new Error("Not authorized");
-        }
+      if (mode === "real") {
+        console.log("[TIP] Starting real mode tip...");
+        console.log("[TIP] From:", selectedAccount.publicKey.toBase58());
+        console.log("[TIP] To:", currentPost.creator);
+        console.log("[TIP] Amount:", amount);
+        
+        // Real mode: Build transaction first
+        console.log("[TIP] Building transaction...");
+        const transaction = await tokenService.buildTransferTransaction(
+          selectedAccount,
+          currentPost.creator,
+          amount
+        );
+        console.log("[TIP] Transaction built successfully");
 
-        if (mode === "real") {
-          // Real mode: transfer SKR and record tip in Supabase
-          const signTx = async (tx: Transaction): Promise<string> => {
-            return await signAndSendTransaction(tx, 0);
-          };
+        // Use signAndSendTransaction from useMobileWallet (handles transact internally)
+        console.log("[TIP] Opening wallet...");
+        const signature = await signAndSendTransaction(transaction, 0);
+        console.log("[TIP] Transaction signature:", signature);
+        
+        // Wait for confirmation
+        console.log("[TIP] Confirming transaction...");
+        await tokenService.confirmTransaction(signature);
+        console.log("[TIP] Transaction confirmed");
 
-          await tokenService.transferSKR(
-            selectedAccount,
-            currentPost.creator,
-            amount,
-            signTx
-          );
+        // Record tip in Supabase
+        console.log("[TIP] Recording tip in Supabase...");
+        await supabaseService.recordTip(
+          currentPost.id,
+          selectedAccount.publicKey.toBase58(),
+          amount
+        );
+        console.log("[TIP] Tip recorded");
 
-          await supabaseService.recordTip(
-            currentPost.id,
-            selectedAccount.address,
-            amount
-          );
+        Alert.alert(
+          "Success",
+          `You tipped ${amount} SKR to ${currentPost.creator.slice(0, 8)}...${currentPost.creator.slice(-4)}!`,
+          [{ text: "OK" }]
+        );
+        
+        // Send notification to post creator
+        await sendTipNotification(currentPost.id);
+        
+        // Refresh balance
+        await loadSKRBalance();
+      } else {
+        // Demo mode: just update tips in demo store (no transact needed)
+        demoPostStore.updatePostTips(currentPost.id, amount);
 
-          Alert.alert(
-            "Success",
-            `You tipped ${amount} SKR to ${currentPost.creator.slice(0, 8)}...${currentPost.creator.slice(-4)}!`,
-            [{ text: "OK" }]
-          );
-        } else {
-          // Demo mode: just update tips in demo store
-          demoPostStore.updatePostTips(currentPost.id, amount);
+        Alert.alert(
+          "Success",
+          `Demo: You tipped ${amount} SKR (no real tokens transferred)`,
+          [{ text: "OK" }]
+        );
+        
+        // Send notification in demo mode too (for testing)
+        await sendTipNotification(currentPost.id);
+      }
 
-          Alert.alert(
-            "Success",
-            `Demo: You tipped ${amount} SKR (no real tokens transferred)`,
-            [{ text: "OK" }]
-          );
-        }
-
-        if (mode === "real") {
-          await loadSKRBalance();
-        }
-
-        setTipAmount("");
-      });
+      setTipAmount("");
     } catch (error: any) {
-      console.error("Tip error:", error);
-      Alert.alert("Error", error.message || "Failed to send tip");
+      console.error("[TIP] Error caught:", error);
+      console.error("[TIP] Error message:", error?.message);
+      console.error("[TIP] Error stack:", error?.stack);
+      Alert.alert(
+        "Error", 
+        `Failed to send tip: ${error?.message || "Unknown error"}\n\nCheck console for details.`
+      );
     } finally {
+      console.log("[TIP] Cleaning up...");
       setIsTipping(false);
     }
   };
@@ -201,11 +222,13 @@ export function PostDetailScreen() {
     <View style={styles.wrapper}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Image 
-            source={POST_IMAGES[currentPost.image_type || 'general']} 
-            style={styles.image} 
-            resizeMode="cover"
-          />
+          <View style={styles.imageContainer}>
+            <Image 
+              source={POST_IMAGES[currentPost.image_type || 'general']} 
+              style={styles.image} 
+              resizeMode="contain"
+            />
+          </View>
 
           <View style={styles.detailsContainer}>
             <View style={styles.header}>
@@ -349,10 +372,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0F172A",
   },
+  imageContainer: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#0F172A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   image: {
     width: "100%",
-    height: 300,
-    backgroundColor: "#1E293B",
+    height: "100%",
   },
   detailsContainer: {
     padding: 20,
